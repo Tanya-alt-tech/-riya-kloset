@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<!--
+=====================================================================
+  RIY@ KLOSET: ADMIN PANEL  (/admin.html)
+  For the shop owner, designed for her phone.
+  • Log in (Supabase Auth, email + password)
+  • Add / edit / delete items, upload & reorder photos (auto-compressed)
+  • Mark items Sold / Hidden / Active in one tap
+  • Orders tab: pickup schedule (today / upcoming), deliveries, status updates
+  • Edit shop settings: WhatsApp, MoMo number, socials, address, hours, delivery fees
+  Only accounts listed in the `admins` table can change anything (see README).
+=====================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1E1E1E">
+<title>Admin · Riy@ Kloset</title>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--orange:#F26A1B;--orange-l:#FF9F43;--char:#1E1E1E;--bg:#F6F6F4;--ink:#1E1E1E;--muted:#6B6B6B;--line:#E4E4E0;--soft:#FFF1E8;--red:#E03C31;--ok:#2E9E5B;--r:16px;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.45;padding-bottom:96px;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+a{color:inherit}
+.wrap{max-width:860px;margin:0 auto;padding:0 16px}
+:focus-visible{outline:3px solid var(--orange-l);outline-offset:2px}
+
+/* Header */
+.top{position:sticky;top:0;z-index:30;background:var(--char);color:#fff}
+.top-in{display:flex;align-items:center;justify-content:space-between;height:60px;gap:10px}
+.logo{font-weight:900;font-size:1.15rem;letter-spacing:-.03em;display:flex;align-items:center;gap:8px;white-space:nowrap;text-decoration:none}
+.logo .at{display:inline-grid;place-items:center;width:1.02em;height:1.02em;border-radius:50%;background:var(--orange-l);color:var(--char);font-size:.86em;transform:rotate(-14deg);margin:0 .05em}
+.logo .k{font-weight:500}
+.pill{font-size:.6rem;font-weight:800;background:var(--orange);padding:2px 6px;border-radius:999px;letter-spacing:.04em}
+.top-act{display:flex;gap:6px}
+.top-act a,.top-act button{min-height:40px;padding:0 10px;white-space:nowrap;border-radius:10px;background:rgba(255,255,255,.1);font-weight:700;font-size:.85rem;display:inline-flex;align-items:center;text-decoration:none;color:#fff}
+.stripe{height:5px;background:repeating-linear-gradient(90deg,var(--orange) 0 22px,#fff 22px 28px,var(--orange-l) 28px 46px,var(--char) 46px 50px)}
+
+/* Common */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 20px;border-radius:14px;font-weight:800;font-size:1rem}
+.btn-o{background:var(--orange);color:#fff}
+.btn-d{background:var(--char);color:#fff}
+.btn-l{background:#fff;border:1.5px solid var(--line)}
+.btn-red{background:#fff;border:1.5px solid #F3C4C0;color:var(--red)}
+.btn-block{width:100%}
+.btn[disabled]{opacity:.55;pointer-events:none}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:18px}
+h1{font-size:1.5rem;font-weight:900;letter-spacing:-.03em}
+h2{font-size:1.15rem;font-weight:900;letter-spacing:-.02em}
+.muted{color:var(--muted);font-size:.9rem}
+.field{display:block;margin-top:14px}
+.field>span{display:block;font-size:.8rem;font-weight:800;color:var(--muted);margin-bottom:6px}
+.field small{display:block;color:var(--muted);font-size:.78rem;margin-top:4px}
+input[type=text],input[type=email],input[type=password],input[type=number],input[type=tel],input[type=url],input[type=search],select,textarea{width:100%;min-height:50px;border-radius:12px;border:1.5px solid var(--line);padding:10px 14px;background:#fff;font-size:1rem}
+textarea{min-height:110px;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--orange);outline:none}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.center{min-height:calc(100vh - 140px);display:grid;place-items:center;padding:20px 0}
+.auth{max-width:400px;width:100%}
+.link{color:var(--orange);font-weight:800;background:none;padding:10px 0;text-decoration:underline}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{min-height:42px;padding:0 15px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-weight:700;font-size:.88rem;white-space:nowrap}
+.chip.on{background:var(--char);border-color:var(--char);color:#fff}
+.chip em{font-style:normal;opacity:.65;margin-left:4px}
+
+/* Tabs */
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);background:#fff;border:1px solid var(--line);border-radius:14px;padding:4px;margin:16px 0}
+.tabs button{min-height:44px;border-radius:10px;font-weight:800}
+.tabs button.on{background:var(--char);color:#fff}
+
+.tabs button em{font-style:normal;background:var(--orange);color:#fff;border-radius:999px;padding:0 7px;font-size:.72rem;margin-left:4px}
+/* Orders */
+.order{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:8px}
+.order.new{border-color:var(--orange);box-shadow:0 0 0 2px rgba(242,106,27,.12)}
+.o-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.o-when{font-size:1.15rem;font-weight:900;line-height:1.2}
+.o-when small{display:block;font-size:.78rem;color:var(--muted);font-weight:700}
+.o-items{font-size:.88rem;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:8px 0}
+.o-items div{display:flex;justify-content:space-between;gap:10px}
+.o-acts{display:flex;gap:8px;flex-wrap:wrap}
+.o-acts .quick.on{background:var(--char);color:#fff;border-color:var(--char)}
+.st.new{background:var(--soft);color:var(--orange)}
+.st.confirmed{background:#E6EEF8;color:#2B5A9A}
+.st.ready{background:#E3F4EA;color:var(--ok)}
+.st.collected{background:#ECECEA;color:var(--muted)}
+.st.cancelled{background:#FDE4E2;color:var(--red)}
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}
+.stat b{display:block;font-size:1.5rem;font-weight:900;line-height:1}
+.stat span{font-size:.75rem;color:var(--muted);font-weight:700}
+
+/* Product list */
+.list{display:grid;gap:10px;margin-top:12px}
+.item{display:grid;grid-template-columns:72px 1fr;gap:12px;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:10px;cursor:pointer;align-items:center}
+.th{width:72px;height:88px;border-radius:12px;overflow:hidden;background:var(--soft);display:grid;place-items:center;color:var(--orange);font-size:.65rem;font-weight:800;text-align:center}
+.th img{width:100%;height:100%;object-fit:cover}
+.item b{display:block;font-size:.95rem;line-height:1.25}
+.item small{display:block;color:var(--muted);font-size:.78rem;margin:2px 0 4px}
+.item .pr{font-weight:900}
+.item .meta{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:6px}
+.st{font-size:.7rem;font-weight:800;padding:3px 8px;border-radius:6px}
+.st.active{background:#E3F4EA;color:var(--ok)}
+.st.sold{background:#FDE4E2;color:var(--red)}
+.st.hidden{background:#ECECEA;color:var(--muted)}
+.quick{min-height:38px;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);font-weight:800;font-size:.8rem;background:#fff}
+.empty{text-align:center;padding:36px 16px;background:#fff;border:1.5px dashed var(--line);border-radius:var(--r);color:var(--muted)}
+.addbar{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%)}
+.addbar .btn{max-width:828px;margin:0 auto;display:flex;box-shadow:0 8px 24px rgba(242,106,27,.35)}
+
+/* Editor sheet */
+.sheet{position:fixed;inset:0;z-index:50;background:var(--bg);overflow-y:auto;display:none}
+.sheet.open{display:block}
+.sheet-h{position:sticky;top:0;z-index:2;background:var(--char);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;min-height:60px}
+.sheet-h h2{font-size:1.05rem}
+.sheet-h button{min-height:40px;padding:0 14px;border-radius:10px;background:rgba(255,255,255,.12);color:#fff;font-weight:800}
+.sheet-b{padding:16px 16px 120px;max-width:860px;margin:0 auto}
+.sheet-f{position:fixed;left:0;right:0;bottom:0;z-index:3;background:#fff;border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:flex;gap:10px}
+.sheet-f .in{max-width:828px;margin:0 auto;display:flex;gap:10px;width:100%}
+.sec{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.sec>h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:2px}
+.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+@media(min-width:640px){.photos{grid-template-columns:repeat(4,1fr)}}
+.ph{position:relative;aspect-ratio:4/5;border-radius:12px;overflow:hidden;background:var(--soft);border:1.5px solid var(--line)}
+.ph img{width:100%;height:100%;object-fit:cover}
+.ph .cover{position:absolute;top:6px;left:6px;background:var(--orange);color:#fff;font-size:.65rem;font-weight:900;padding:3px 7px;border-radius:6px}
+.ph .tools{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;padding:5px;background:linear-gradient(transparent,rgba(0,0,0,.55))}
+.ph .tools button{width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.92);font-weight:900;font-size:.9rem;display:grid;place-items:center}
+.ph .tools button.del{color:var(--red)}
+.ph.up{display:grid;place-items:center}
+.addph{aspect-ratio:4/5;border-radius:12px;border:2px dashed #F5B48C;background:var(--soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--orange);font-weight:800;font-size:.85rem;cursor:pointer;text-align:center;padding:6px}
+.addph b{font-size:1.8rem;line-height:1}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;margin-top:10px;font-weight:800}
+.toggle small{display:block;font-weight:500;color:var(--muted)}
+.toggle input{width:26px;height:26px;accent-color:var(--orange);flex:none}
+.seg{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.seg label{flex:1 1 auto}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:flex;align-items:center;justify-content:center;min-height:46px;padding:0 12px;border-radius:12px;border:1.5px solid var(--line);font-weight:800;font-size:.9rem;background:#fff;cursor:pointer}
+.seg input:checked+span{background:var(--char);border-color:var(--char);color:#fff}
+.seg input:focus-visible+span{outline:3px solid var(--orange-l)}
+.spin{width:30px;height:30px;border-radius:50%;border:4px solid #FFE0CC;border-top-color:var(--orange);animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hrow{display:grid;grid-template-columns:96px 1fr;gap:10px;align-items:center;margin-top:8px}
+.hrow b{font-size:.9rem}
+.drow{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px}
+
+/* Toast */
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:var(--char);color:#fff;padding:12px 18px;border-radius:14px;font-weight:700;z-index:90;opacity:0;pointer-events:none;transition:.25s;max-width:92vw;text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <a class="logo" href="admin.html">Riy<span class="at">@</span><span class="k">Kloset</span> <span class="pill">ADMIN</span></a>
+    <div class="top-act" id="topAct" hidden>
+      <a href="index.html">View shop</a>
+      <button id="logout">Log out</button>
+    </div>
+  </div>
+  <div class="stripe"></div>
+</header>
+
+<main id="view"></main>
+
+<!-- Add / edit item -->
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="edTitle">
+  <div class="sheet-h"><h2 id="edTitle">Add item</h2><button data-cancel>Close</button></div>
+  <div class="sheet-b" id="edBody"></div>
+  <div class="sheet-f"><div class="in">
+    <button class="btn btn-red" data-delete id="delBtn">Delete</button>
+    <button class="btn btn-o" data-save style="flex:1" id="saveBtn">Save item</button>
+  </div></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   SETUP
+   ===================================================================== */
+const C = window.RK_CONFIG || {};
+const CONFIGURED = !!(C.supabaseUrl && C.supabaseAnonKey && !/YOUR/.test(C.supabaseUrl + C.supabaseAnonKey) && window.supabase);
+const BUCKET = "product-images";
+const MAX_PHOTOS = 8;
+const CATS = { men: "Men", women: "Women", bags: "Bags", shoes: "Shoes", phones: "Phones" };
+const CONDS = { fashion: ["New", "Like New", "Very Good", "Good"], phones: ["New", "UK Used", "Refurbished"] };
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DEFAULT_SETTINGS = {
+  city: "Accra", whatsapp: "233207411266", phone: "+233 20 741 1266", instagram: "", tiktok: "",
+  address: "", landmark: "", momoNumber: "", momoName: "",
+  hours: DAYS.map((d, i) => [d, i === 6 ? "1:00pm – 6:00pm" : i >= 4 ? "9:00am – 8:00pm" : "9:00am – 7:00pm"]),
+  delivery: [
+    { id: "pickup", label: "Pick up in store", note: "Try it on before you take it", fee: 0 },
+    { id: "accra",  label: "Accra delivery", note: "Same / next day by dispatch rider", fee: 40 },
+    { id: "nation", label: "Nationwide courier", note: "2–4 days via bus courier (VIP / STC)", fee: 60 }
+  ]
+};
+
+let sb = null, user = null, products = [], settings = null, orders = [];
+let orderFilter = "today";
+let tab = "products", statusFilter = "active", search = "";
+let ed = null;          // item being edited
+let busy = false;
+
+const $ = (s, el = document) => el.querySelector(s);
+const view = $("#view");
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const cedi = n => "GH₵" + Math.round(Number(n) || 0).toLocaleString("en-US");
+const isPhoneCat = c => c === "phones";
+
+function toast(msg, err) {
+  const t = $("#toast");
+  t.textContent = msg; t.className = "toast show" + (err ? " err" : "");
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = "toast", err ? 4200 : 2400);
+}
+function friendly(e) {
+  const m = (e && (e.message || e.error_description)) || String(e);
+  if (/Invalid login/i.test(m)) return "Wrong email or password.";
+  if (/row-level security|permission denied|not authorized/i.test(m)) return "You don't have permission to do that.";
+  if (/Failed to fetch|NetworkError|network/i.test(m)) return "No internet connection. Try again.";
+  return m;
+}
+
+/* =====================================================================
+   SCREENS: setup / login / password / not admin
+   ===================================================================== */
+function screenNotConfigured() {
+  view.innerHTML = `<div class="wrap center"><div class="card auth">
+    <h1>Almost there</h1>
+    <p class="muted" style="margin-top:8px">The admin panel isn't connected to the database yet.
+    Open <b>config.js</b> and paste the Supabase Project URL and anon key (see README.md, step 3).</p></div></div>`;
+}
+function screenLogin(msg = "") {
+  $("#topAct").hidden = true;
+  view.innerHTML = `<div class="wrap center"><form class="card auth" id="loginForm">
+    <h1>Welcome back 👋</h1>
+    <p class="muted" style="margin-top:4px">Log in to manage your shop.</p>
+    ${msg ? `<p style="margin-top:12px;color:var(--ok);font-weight:700">${esc(msg)}</p>` : ""}
+    <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
+    <label class="field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="btn btn-o btn-block" style="margin-top:18px" type="submit">Log in</button>
+    <button class="link" type="button" id="forgot">Forgot password?</button>
+  </form></div>`;
+  $("#loginForm").onsubmit = async e => {
+    e.preventDefault();
+    const f = new FormData(e.target), btn = e.target.querySelector("[type=submit]");
+    btn.disabled = true; btn.textContent = "Logging in…";
+    const { data, error } = await sb.auth.signInWithPassword({ email: f.get("email").trim(), password: f.get("password") });
+    if (error) { toast(friendly(error), true); btn.disabled = false; btn.textContent = "Log in"; return; }
+    enter(data.user);
+  };
+  $("#forgot").onclick = async () => {
+    const email = $("#loginForm [name=email]").value.trim();
+    if (!email) { toast("Type your email first, then tap Forgot password", true); return; }
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    if (error) toast(friendly(error), true);
+    else toast("Check your email for a reset link");
+  };
+}
+function screenSetPassword() {
+  view.innerHTML = `<div class="wrap center"><form class="card auth" id="pwForm">
+    <h1>Set a new password</h1>
+    <label class="field"><span>New password</span><input type="password" name="pw" autocomplete="new-password" minlength="8" required><small>At least 8 characters.</small></label>
+    <button class="btn btn-o btn-block" style="margin-top:18px" type="submit">Save password</button>
+  </form></div>`;
+  $("#pwForm").onsubmit = async e => {
+    e.preventDefault();
+    const { data, error } = await sb.auth.updateUser({ password: new FormData(e.target).get("pw") });
+    if (error) return toast(friendly(error), true);
+    history.replaceState(null, "", location.pathname);
+    toast("Password updated"); enter(data.user);
+  };
+}
+function screenNotAdmin() {
+  view.innerHTML = `<div class="wrap center"><div class="card auth">
+    <h1>No admin access</h1>
+    <p class="muted" style="margin-top:8px">You're logged in as <b>${esc(user && user.email)}</b>, but this account isn't an admin.
+    Ask your web designer to add it (README.md, step 4).</p>
+    <button class="btn btn-l btn-block" style="margin-top:16px" id="lo2">Log out</button></div></div>`;
+  $("#lo2").onclick = logout;
+}
+
+/* =====================================================================
+   SESSION
+   ===================================================================== */
+async function enter(u) {
+  user = u;
+  view.innerHTML = `<div class="center"><div class="spin"></div></div>`;
+  const { data, error } = await sb.from("admins").select("user_id").eq("user_id", u.id).maybeSingle();
+  if (error || !data) return screenNotAdmin();
+  $("#topAct").hidden = false;
+  await Promise.all([loadProducts(), loadSettings(), loadOrders()]);
+  renderMain();
+}
+async function logout() {
+  await sb.auth.signOut();
+  user = null; products = []; settings = null;
+  screenLogin();
+}
+$("#logout").onclick = logout;
+
+/* =====================================================================
+   DATA
+   ===================================================================== */
+async function loadProducts() {
+  const { data, error } = await sb.from("products").select("*").order("created_at", { ascending: false });
+  if (error) { toast(friendly(error), true); products = []; return; }
+  products = data;
+}
+async function loadOrders() {
+  const { data, error } = await sb.from("orders").select("*").order("created_at", { ascending: false }).limit(300);
+  if (error) { console.warn(error); orders = []; return; }
+  orders = data;
+}
+async function loadSettings() {
+  const { data } = await sb.from("settings").select("data").eq("id", 1).maybeSingle();
+  settings = { ...DEFAULT_SETTINGS, ...((data && data.data) || {}) };
+}
+
+/* =====================================================================
+   MAIN: tabs, product list, settings
+   ===================================================================== */
+function renderMain() {
+  const counts = { active: 0, sold: 0, hidden: 0 };
+  products.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
+  view.innerHTML = `<div class="wrap">
+    <div class="tabs" role="tablist">
+      <button class="${tab === "products" ? "on" : ""}" data-tab="products">Items</button>
+      <button class="${tab === "orders" ? "on" : ""}" data-tab="orders">Orders${orders.filter(o => o.status === "new").length ? `<em>${orders.filter(o => o.status === "new").length}</em>` : ""}</button>
+      <button class="${tab === "settings" ? "on" : ""}" data-tab="settings">Settings</button>
+    </div>
+    <div id="tabBody"></div>
+  </div>
+  ${tab === "products" ? `<div class="addbar"><button class="btn btn-o btn-block" data-new>＋ Add new item</button></div>` : ""}`;
+  if (tab === "products") renderProducts(counts); else if (tab === "orders") renderOrders(); else renderSettings();
+}
+
+function renderProducts(counts) {
+  $("#tabBody").innerHTML = `
+    <div class="stats">
+      <div class="stat"><b>${counts.active}</b><span>On sale</span></div>
+      <div class="stat"><b>${counts.sold}</b><span>Sold</span></div>
+      <div class="stat"><b>${counts.hidden}</b><span>Hidden</span></div>
+    </div>
+    <input type="search" id="q" placeholder="Search items…" value="${esc(search)}" aria-label="Search items">
+    <div class="chips" style="margin-top:10px">
+      ${[["active", "On sale"], ["sold", "Sold"], ["hidden", "Hidden"], ["all", "All"]].map(([v, l]) =>
+        `<button class="chip ${statusFilter === v ? "on" : ""}" data-status="${v}">${l}<em>${v === "all" ? products.length : counts[v]}</em></button>`).join("")}
+    </div>
+    <div class="list" id="list"></div>`;
+  renderList();
+}
+
+function renderList() {
+  const q = search.trim().toLowerCase();
+  const rows = products.filter(p => (statusFilter === "all" || p.status === statusFilter) &&
+    (!q || `${p.name} ${p.brand || ""} ${p.category}`.toLowerCase().includes(q)));
+  $("#list").innerHTML = rows.length ? rows.map(p => {
+    const detail = isPhoneCat(p.category)
+      ? [p.storage, p.colour, p.condition].filter(Boolean).join(" · ")
+      : [CATS[p.category], (p.sizes || []).join(", "), p.condition].filter(Boolean).join(" · ");
+    const quick = p.status === "active"
+      ? `<button class="quick" data-setstatus="sold" data-id="${p.id}">Mark sold</button>`
+      : `<button class="quick" data-setstatus="active" data-id="${p.id}">Put back on sale</button>`;
+    return `<div class="item" data-edit="${p.id}">
+      <div class="th">${p.images && p.images[0] ? `<img src="${esc(p.images[0])}" alt="" loading="lazy">` : "No photo"}</div>
+      <div>
+        <b>${esc(p.name)}</b>
+        <small>${esc(detail)}${p.stock > 1 ? ` · ${p.stock} in stock` : ""}</small>
+        <span class="pr">${cedi(p.price)}</span>${p.old_price ? ` <s class="muted" style="font-size:.8rem">${cedi(p.old_price)}</s>` : ""}
+        <div class="meta"><span class="st ${p.status}">${p.status === "active" ? "On sale" : p.status === "sold" ? "Sold" : "Hidden"}</span>${quick}</div>
+      </div>
+    </div>`;
+  }).join("") : `<div class="empty">${products.length ? "No items match." : "No items yet. Tap <b>Add new item</b> to list your first piece."}</div>`;
+}
+
+async function setStatus(id, status) {
+  const { data, error } = await sb.from("products").update({ status }).eq("id", id).select().single();
+  if (error) return toast(friendly(error), true);
+  products = products.map(p => p.id === id ? data : p);
+  toast(status === "sold" ? "Marked as sold. It's off the shop now" : "Back on sale");
+  renderMain();
+}
+
+/* ---------- Orders & pickup schedule ---------- */
+const TZ = "Africa/Accra";
+const dayKey = d => new Date(d).toLocaleDateString("en-CA", { timeZone: TZ });   // YYYY-MM-DD in Ghana time
+const fmtWhen = d => new Date(d).toLocaleString("en-GB", { timeZone: TZ, weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
+const fmtTimeOnly = d => new Date(d).toLocaleTimeString("en-GB", { timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true });
+const DELIVERY_NAMES = { pickup: "Pick up in store", accra: "Accra delivery", nation: "Nationwide courier" };
+const ORDER_STEPS = [["confirmed", "Confirmed"], ["ready", "Ready"], ["collected", "Collected / sent"], ["cancelled", "Cancel"]];
+
+function waNumber(v) {              // "024 123 4567" → "233241234567" (or null if not a phone)
+  const d = String(v || "").replace(/\D/g, "").replace(/^0/, "233");
+  return /^233\d{9}$/.test(d) ? d : null;
+}
+
+function renderOrders() {
+  const today = dayKey(Date.now());
+  const open = o => !["collected", "cancelled"].includes(o.status);
+  const filters = {
+    today:    o => o.delivery === "pickup" && o.pickup_at && dayKey(o.pickup_at) === today && open(o),
+    upcoming: o => o.delivery === "pickup" && o.pickup_at && dayKey(o.pickup_at) >= today && open(o),
+    delivery: o => o.delivery !== "pickup" && open(o),
+    all:      () => true
+  };
+  const count = k => orders.filter(filters[k]).length;
+  let rows = orders.filter(filters[orderFilter]);
+  if (orderFilter === "today" || orderFilter === "upcoming") rows = rows.sort((a, b) => new Date(a.pickup_at) - new Date(b.pickup_at));
+
+  $("#tabBody").innerHTML = `
+    <div class="chips">
+      ${[["today", "Today's pickups"], ["upcoming", "Upcoming pickups"], ["delivery", "Deliveries"], ["all", "All orders"]].map(([v, l]) =>
+        `<button class="chip ${orderFilter === v ? "on" : ""}" data-ofilter="${v}">${l}<em>${count(v)}</em></button>`).join("")}
+    </div>
+    <p class="muted" style="font-size:.8rem;margin:10px 0">Orders appear here when a customer taps "Send order on WhatsApp". Confirm them in WhatsApp as usual, then update the status here.
+      <button class="link" data-refresh style="padding:0 0 0 4px">Refresh</button></p>
+    <div class="list">${rows.length ? rows.map(orderCard).join("") : `<div class="empty">${orderFilter === "today" ? "No pickups booked for today." : "Nothing here yet."}</div>`}</div>`;
+}
+
+function orderCard(o) {
+  const pickup = o.delivery === "pickup";
+  const phone = waNumber(o.phone);
+  const items = (o.items || []).map(i => `<div><span>${esc(i.name)}${i.size ? ` (${esc(i.size)})` : ""}${i.qty > 1 ? ` ×${i.qty}` : ""}</span><b>${cedi(i.price * (i.qty || 1))}</b></div>`).join("");
+  return `<div class="order ${o.status === "new" ? "new" : ""}">
+    <div class="o-top">
+      <div class="o-when">${pickup && o.pickup_at ? `🕑 ${esc(fmtWhen(o.pickup_at))}` : esc(DELIVERY_NAMES[o.delivery] || o.delivery)}
+        <small>${esc(o.ref)} · ordered ${esc(fmtWhen(o.created_at))}</small></div>
+      <span class="st ${o.status}">${o.status === "new" ? "New" : (ORDER_STEPS.find(s => s[0] === o.status) || [, o.status])[1]}</span>
+    </div>
+    <div><b>${esc(o.customer_name || "-")}</b>${o.phone ? ` · <a href="tel:${esc(o.phone)}" style="font-weight:700">${esc(o.phone)}</a>` : ""}${o.area ? `<div class="muted" style="font-size:.85rem">📍 ${esc(o.area)}</div>` : ""}</div>
+    <div class="o-items">${items}<div style="margin-top:4px"><span>Total · ${o.payment === "cash" ? "Cash" : "MoMo"}</span><b>${cedi(o.total)}</b></div></div>
+    <div class="o-acts">
+      ${ORDER_STEPS.map(([v, l]) => `<button class="quick ${o.status === v ? "on" : ""}" data-ostatus="${v}" data-id="${o.id}">${l}</button>`).join("")}
+      ${phone ? `<a class="quick" style="display:inline-flex;align-items:center;text-decoration:none;color:#128C4B;border-color:#BFE8CF" href="https://wa.me/${phone}?text=${encodeURIComponent(`Hi ${o.customer_name || ""}! Your Riy@ Kloset order ${o.ref} is ready for pickup${pickup && o.pickup_at ? ` at ${fmtTimeOnly(o.pickup_at)}` : ""}. See you soon!`)}" target="_blank" rel="noopener">WhatsApp customer</a>` : ""}
+    </div>
+  </div>`;
+}
+
+async function setOrderStatus(id, status) {
+  const { data, error } = await sb.from("orders").update({ status }).eq("id", id).select().single();
+  if (error) return toast(friendly(error), true);
+  orders = orders.map(o => o.id === id ? data : o);
+  renderMain();
+}
+
+/* ---------- Settings ---------- */
+function renderSettings() {
+  const s = settings;
+  $("#tabBody").innerHTML = `<form id="setForm">
+    <div class="sec"><h3>Contact</h3>
+      <label class="field"><span>WhatsApp number (orders go here)</span><input type="tel" name="whatsapp" value="${esc(s.whatsapp)}" placeholder="233241234567">
+        <small>Country code first, no + or spaces. 024 123 4567 → 233241234567</small></label>
+      <label class="field"><span>Phone number shown on the site</span><input type="tel" name="phone" value="${esc(s.phone)}" placeholder="+233 20 741 1266"></label>
+      <label class="field"><span>Instagram</span><input type="text" name="instagram" value="${esc(s.instagram)}" placeholder="@riyakloset or full link"></label>
+      <label class="field"><span>TikTok</span><input type="text" name="tiktok" value="${esc(s.tiktok)}" placeholder="@riyakloset or full link"></label>
+    </div>
+    <div class="sec"><h3>Mobile Money</h3>
+      <p class="muted" style="font-size:.82rem">Shown at checkout so customers know where to pay after you confirm.</p>
+      <div class="row2">
+        <label class="field"><span>MoMo number</span><input type="tel" name="momoNumber" value="${esc(s.momoNumber)}" placeholder="024 123 4567"></label>
+        <label class="field"><span>Name on account</span><input type="text" name="momoName" value="${esc(s.momoName)}" placeholder="Riya …"></label>
+      </div>
+    </div>
+    <div class="sec"><h3>Location</h3>
+      <label class="field"><span>City</span><input type="text" name="city" value="${esc(s.city)}"></label>
+      <label class="field"><span>Address</span><input type="text" name="address" value="${esc(s.address)}" placeholder="Street / area, Accra, Ghana"></label>
+      <label class="field"><span>Landmark / directions</span><input type="text" name="landmark" value="${esc(s.landmark)}" placeholder="Opposite … Look for the orange sign"></label>
+    </div>
+    <div class="sec"><h3>Opening hours</h3>
+      ${s.hours.map(([d, h], i) => `<div class="hrow"><b>${esc(d)}</b><input type="text" name="hours_${i}" value="${esc(h)}" placeholder="Closed"></div>`).join("")}
+    </div>
+    <div class="sec"><h3>Delivery options</h3>
+      ${s.delivery.map((d, i) => `<div class="drow">
+        <div class="row2" style="grid-template-columns:2fr 1fr">
+          <label class="field" style="margin-top:0"><span>Name</span><input type="text" name="del_label_${i}" value="${esc(d.label)}"></label>
+          <label class="field" style="margin-top:0"><span>Fee (GH₵)</span><input type="number" min="0" inputmode="numeric" name="del_fee_${i}" value="${Number(d.fee) || 0}"></label>
+        </div>
+        <label class="field"><span>Short note</span><input type="text" name="del_note_${i}" value="${esc(d.note)}"></label>
+      </div>`).join("")}
+    </div>
+    <button class="btn btn-o btn-block" type="submit">Save shop settings</button>
+  </form>`;
+  $("#setForm").onsubmit = saveSettings;
+}
+
+function socialUrl(v, base) {
+  v = v.trim();
+  if (!v) return "";
+  if (/^https:\/\//i.test(v)) return v;
+  if (/^http:\/\//i.test(v)) return v.replace(/^http:/i, "https:");
+  return base + v.replace(/^@/, "").replace(/^(www\.)?(instagram|tiktok)\.com\//i, "");
+}
+
+async function saveSettings(e) {
+  e.preventDefault();
+  const f = new FormData(e.target), btn = e.target.querySelector("[type=submit]");
+  const wa = (f.get("whatsapp") || "").replace(/\D/g, "").replace(/^0/, "233");
+  if (wa && !/^233\d{9}$/.test(wa)) { toast("WhatsApp number should look like 233241234567", true); return; }
+  const tk = socialUrl(f.get("tiktok") || "", "https://www.tiktok.com/@");
+  const data = {
+    whatsapp: wa,
+    phone: (f.get("phone") || "").trim().slice(0, 25),
+    instagram: socialUrl(f.get("instagram") || "", "https://www.instagram.com/"),
+    tiktok: tk,
+    momoNumber: f.get("momoNumber").trim(), momoName: f.get("momoName").trim(),
+    city: f.get("city").trim() || "Accra", address: f.get("address").trim(), landmark: f.get("landmark").trim(),
+    hours: DAYS.map((d, i) => [d, (f.get("hours_" + i) || "").trim() || "Closed"]),
+    delivery: settings.delivery.map((d, i) => ({
+      id: d.id, label: f.get("del_label_" + i).trim() || d.label,
+      note: f.get("del_note_" + i).trim(), fee: Math.max(0, Math.round(Number(f.get("del_fee_" + i)) || 0))
+    }))
+  };
+  btn.disabled = true; btn.textContent = "Saving…";
+  const { error } = await sb.from("settings").upsert({ id: 1, data });
+  btn.disabled = false; btn.textContent = "Save shop settings";
+  if (error) return toast(friendly(error), true);
+  settings = { ...settings, ...data };
+  renderSettings();
+  toast("Shop settings saved ✓");
+}
+
+/* =====================================================================
+   EDITOR: add / edit an item
+   ===================================================================== */
+function blankItem() {
+  return { id: null, category: "women", name: "", price: "", old_price: "", condition: "Very Good", sizes: "", stock: 1,
+    fresh: true, status: "active", description: "", measurements: "",
+    brand: "", storage: "", ram: "", colour: "", battery: "", in_box: "",
+    images: [], newUploads: [], removed: [], uploading: 0 };
+}
+function openEditor(p) {
+  ed = p ? { ...blankItem(), ...p, sizes: (p.sizes || []).join(", "), old_price: p.old_price ?? "", battery: p.battery ?? "",
+    images: [...(p.images || [])], newUploads: [], removed: [], uploading: 0 } : blankItem();
+  for (const k of ["brand", "storage", "ram", "colour", "in_box", "description", "measurements"]) ed[k] = ed[k] ?? "";
+  $("#edTitle").textContent = p ? "Edit item" : "Add item";
+  $("#delBtn").style.display = p ? "" : "none";
+  delete $("#delBtn").dataset.armed; $("#delBtn").textContent = "Delete";
+  renderEditor();
+  $("#sheet").classList.add("open");
+  $("#sheet").scrollTop = 0;
+  document.body.style.overflow = "hidden";
+}
+function closeEditor() {
+  $("#sheet").classList.remove("open");
+  document.body.style.overflow = "";
+  ed = null;
+}
+
+function renderEditor() {
+  const phone = isPhoneCat(ed.category);
+  const conds = phone ? CONDS.phones : CONDS.fashion;
+  if (!conds.includes(ed.condition)) ed.condition = conds[0];
+  const seg = (name, opts, val) => `<div class="seg">${opts.map(([v, l]) =>
+    `<label><input type="radio" name="${name}" value="${v}" ${String(val) === v ? "checked" : ""}><span>${l}</span></label>`).join("")}</div>`;
+
+  $("#edBody").innerHTML = `<form id="edForm" autocomplete="off">
+    <div class="sec"><h3>Photos</h3>
+      <p class="muted" style="font-size:.82rem">First photo is the cover. Use ◀ ▶ to reorder. Photos are shrunk automatically so the shop loads fast.</p>
+      <div class="photos" id="photos"></div>
+      <input type="file" id="fileIn" accept="image/*" multiple hidden>
+    </div>
+
+    <div class="sec"><h3>Category</h3>
+      ${seg("category", Object.entries(CATS), ed.category)}
+    </div>
+
+    <div class="sec"><h3>Details</h3>
+      <label class="field"><span>Item name *</span><input type="text" name="name" maxlength="120" value="${esc(ed.name)}" placeholder="${phone ? "e.g. iPhone 13" : "e.g. Vintage Levi's 501 Jeans"}" required></label>
+      <div class="row2">
+        <label class="field"><span>Price (GH₵) *</span><input type="number" name="price" min="0" inputmode="numeric" value="${esc(ed.price)}" required></label>
+        <label class="field"><span>Old price (optional)</span><input type="number" name="old_price" min="0" inputmode="numeric" value="${esc(ed.old_price)}"><small>Shows as a deal</small></label>
+      </div>
+      <div class="field"><span>Condition *</span>${seg("condition", conds.map(c => [c, c]), ed.condition)}</div>
+      ${phone ? `
+        <div class="row2">
+          <label class="field"><span>Brand</span><input type="text" name="brand" value="${esc(ed.brand)}" placeholder="Apple, Samsung…"></label>
+          <label class="field"><span>Colour</span><input type="text" name="colour" value="${esc(ed.colour)}"></label>
+        </div>
+        <div class="row3">
+          <label class="field"><span>Storage</span><input type="text" name="storage" value="${esc(ed.storage)}" placeholder="128GB"></label>
+          <label class="field"><span>RAM</span><input type="text" name="ram" value="${esc(ed.ram)}" placeholder="4GB"></label>
+          <label class="field"><span>Battery %</span><input type="number" name="battery" min="0" max="100" inputmode="numeric" value="${esc(ed.battery)}" placeholder="88"></label>
+        </div>
+        <label class="field"><span>In the box</span><input type="text" name="in_box" value="${esc(ed.in_box)}" placeholder="Phone + cable"></label>`
+      : `
+        <label class="field"><span>Size(s)</span><input type="text" name="sizes" value="${esc(ed.sizes)}" placeholder="e.g. 32   or   UK 10   or   M, L, XL">
+          <small>One size for thrift pieces. Separate with commas for new stock in several sizes.</small></label>
+        <label class="field"><span>Measurements (optional)</span><input type="text" name="measurements" value="${esc(ed.measurements)}" placeholder="Waist 32in · Length 41in"></label>`}
+      <label class="field"><span>Description</span><textarea name="description" maxlength="1000" placeholder="Fabric, fit, any flaws (be honest, it builds trust)…">${esc(ed.description)}</textarea></label>
+    </div>
+
+    <div class="sec"><h3>Stock & visibility</h3>
+      <label class="field"><span>How many do you have?</span><input type="number" name="stock" min="0" inputmode="numeric" value="${esc(ed.stock)}">
+        <small>1 = one-of-a-kind (shows "Only 1 left")</small></label>
+      <label class="toggle"><div>Fresh bale<small>Show in "Fresh Bales" on the home page</small></div><input type="checkbox" name="fresh" ${ed.fresh ? "checked" : ""}></label>
+      <div class="field"><span>Status</span>${seg("status", [["active", "On sale"], ["sold", "Sold"], ["hidden", "Hidden"]], ed.status)}</div>
+    </div>
+  </form>`;
+  renderPhotos();
+  $("#fileIn").onchange = e => { handleFiles([...e.target.files]); e.target.value = ""; };
+}
+
+function renderPhotos() {
+  const tiles = ed.images.map((url, i) => `<div class="ph">
+    <img src="${esc(url)}" alt="Photo ${i + 1}">
+    ${i === 0 ? `<span class="cover">COVER</span>` : ""}
+    <div class="tools">
+      <button type="button" data-imgmove="${i}" data-d="-1" aria-label="Move left" ${i === 0 ? "style=visibility:hidden" : ""}>◀</button>
+      <button type="button" class="del" data-imgdel="${i}" aria-label="Remove photo">✕</button>
+      <button type="button" data-imgmove="${i}" data-d="1" aria-label="Move right" ${i === ed.images.length - 1 ? "style=visibility:hidden" : ""}>▶</button>
+    </div></div>`).join("");
+  const loading = Array.from({ length: ed.uploading }, () => `<div class="ph up"><div class="spin"></div></div>`).join("");
+  const add = ed.images.length + ed.uploading < MAX_PHOTOS
+    ? `<label class="addph" for="fileIn"><b>＋</b>${ed.images.length ? "Add more" : "Add photos"}<small style="font-weight:600;opacity:.8">Camera or gallery</small></label>` : "";
+  $("#photos").innerHTML = tiles + loading + add;
+}
+
+/* Read the form into `ed` (so re-rendering never loses typing) */
+function readForm() {
+  const form = $("#edForm"); if (!form) return;
+  const f = new FormData(form);
+  for (const [k, v] of f.entries()) if (k in ed) ed[k] = v;
+  ed.fresh = !!form.querySelector("[name=fresh]:checked");
+}
+
+/* ---------- Photos: compress + upload ---------- */
+async function compressImage(file, max = 1400, quality = 0.82) {
+  let src;
+  try { src = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+  catch (_) {
+    src = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+  }
+  const w = src.width, h = src.height, scale = Math.min(1, max / Math.max(w, h));
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(w * scale); cv.height = Math.round(h * scale);
+  cv.getContext("2d").drawImage(src, 0, 0, cv.width, cv.height);
+  let blob = await new Promise(r => cv.toBlob(r, "image/webp", quality));
+  if (!blob || blob.type !== "image/webp") blob = await new Promise(r => cv.toBlob(r, "image/jpeg", quality));
+  return blob;
+}
+const rid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+async function handleFiles(files) {
+  const room = MAX_PHOTOS - ed.images.length - ed.uploading;
+  if (files.length > room) toast(`Max ${MAX_PHOTOS} photos per item`, true);
+  files = files.slice(0, Math.max(0, room)).filter(f => f.type.startsWith("image/"));
+  const target = ed;
+  await Promise.all(files.map(async file => {
+    target.uploading++; if (ed === target) renderPhotos();
+    try {
+      const blob = await compressImage(file);
+      const path = `${new Date().toISOString().slice(0, 7)}/${rid()}.${blob.type === "image/webp" ? "webp" : "jpg"}`;
+      const { error } = await sb.storage.from(BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: "31536000", upsert: false });
+      if (error) throw error;
+      const url = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      target.images.push(url); target.newUploads.push(url);
+    } catch (e) {
+      console.error(e);
+      toast(/decode|load|source/i.test(String(e)) ? "Couldn't read that photo. Try a JPG or PNG." : "Photo upload failed: " + friendly(e), true);
+    } finally {
+      target.uploading--; if (ed === target) renderPhotos();
+    }
+  }));
+}
+const pathOf = url => { const i = url.indexOf(`/${BUCKET}/`); return i < 0 ? null : decodeURIComponent(url.slice(i + BUCKET.length + 2).split("?")[0]); };
+async function removeFiles(urls) {
+  const paths = urls.map(pathOf).filter(Boolean);
+  if (paths.length) await sb.storage.from(BUCKET).remove(paths).catch(() => {});
+}
+
+/* ---------- Save / delete / cancel ---------- */
+async function saveItem() {
+  if (busy) return;
+  readForm();
+  if (ed.uploading) return toast("Wait for photos to finish uploading", true);
+  const name = ed.name.trim(), price = Number(ed.price);
+  if (name.length < 2) return toast("Give the item a name", true);
+  if (!(price > 0)) return toast("Enter a price", true);
+  const phone = isPhoneCat(ed.category);
+  const old = Number(ed.old_price);
+  const battery = ed.battery === "" ? null : Math.min(100, Math.max(0, Math.round(Number(ed.battery))));
+  const row = {
+    category: ed.category, name, price, old_price: old > price ? old : null,
+    condition: ed.condition,
+    sizes: phone ? [] : ed.sizes.split(",").map(s => s.trim()).filter(Boolean).slice(0, 12),
+    stock: Math.max(0, Math.round(Number(ed.stock) || 0)), fresh: !!ed.fresh, status: ed.status,
+    description: ed.description.trim(), measurements: phone ? "" : ed.measurements.trim(),
+    brand: phone ? ed.brand.trim() || null : null, storage: phone ? ed.storage.trim() || null : null,
+    ram: phone ? ed.ram.trim() || null : null, colour: phone ? ed.colour.trim() || null : null,
+    battery: phone ? battery : null, in_box: phone ? ed.in_box.trim() || null : null,
+    images: ed.images
+  };
+  if (row.stock === 0 && row.status === "active") row.status = "sold";
+  busy = true; $("#saveBtn").disabled = true; $("#saveBtn").textContent = "Saving…";
+  const q = ed.id
+    ? sb.from("products").update(row).eq("id", ed.id).select().single()
+    : sb.from("products").insert(row).select().single();
+  const { data, error } = await q;
+  busy = false; $("#saveBtn").disabled = false; $("#saveBtn").textContent = "Save item";
+  if (error) return toast(friendly(error), true);
+  await removeFiles(ed.removed);
+  const isNew = !ed.id;
+  products = isNew ? [data, ...products] : products.map(p => p.id === data.id ? data : p);
+  closeEditor();
+  if (isNew && statusFilter !== "all" && statusFilter !== data.status) statusFilter = data.status;
+  renderMain();
+  toast(isNew ? "Item added to the shop ✓" : "Changes saved ✓");
+}
+
+async function deleteItem() {
+  if (!ed || !ed.id || busy) return;
+  // Two-tap delete (no pop-up): first tap arms the button for 4 seconds
+  const btn = $("#delBtn");
+  if (!btn.dataset.armed) {
+    btn.dataset.armed = "1"; btn.textContent = "Tap again to delete";
+    toast('Tip: use "Sold" instead to keep a record of the item');
+    clearTimeout(btn._t); btn._t = setTimeout(() => { delete btn.dataset.armed; btn.textContent = "Delete"; }, 4000);
+    return;
+  }
+  delete btn.dataset.armed; btn.textContent = "Delete";
+  busy = true;
+  const { error } = await sb.from("products").delete().eq("id", ed.id);
+  busy = false;
+  if (error) return toast(friendly(error), true);
+  await removeFiles([...ed.images, ...ed.removed]);
+  products = products.filter(p => p.id !== ed.id);
+  closeEditor(); renderMain(); toast("Item deleted");
+}
+
+async function cancelEdit() {
+  if (!ed) return;
+  if (ed.uploading) return toast("Wait for photos to finish uploading", true);
+  const orphans = ed.newUploads;   // uploaded but never saved
+  closeEditor();
+  if (orphans.length) removeFiles(orphans);
+}
+
+/* =====================================================================
+   EVENTS
+   ===================================================================== */
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, [data-edit]");
+  if (!t) return;
+  if (t.dataset.tab) { tab = t.dataset.tab; renderMain(); return; }
+  if (t.dataset.status) { statusFilter = t.dataset.status; renderMain(); return; }
+  if (t.dataset.ofilter) { orderFilter = t.dataset.ofilter; renderMain(); return; }
+  if (t.dataset.ostatus) { setOrderStatus(t.dataset.id, t.dataset.ostatus); return; }
+  if (t.hasAttribute("data-refresh")) { loadOrders().then(renderMain); return; }
+  if (t.dataset.setstatus) { e.stopPropagation(); setStatus(t.dataset.id, t.dataset.setstatus); return; }
+  if (t.hasAttribute("data-new")) { openEditor(null); return; }
+  if (t.dataset.edit) { openEditor(products.find(p => p.id === t.dataset.edit)); return; }
+  if (t.hasAttribute("data-save")) { saveItem(); return; }
+  if (t.hasAttribute("data-delete")) { deleteItem(); return; }
+  if (t.hasAttribute("data-cancel")) { cancelEdit(); return; }
+  if (t.dataset.imgmove !== undefined) {
+    const i = +t.dataset.imgmove, j = i + (+t.dataset.d);
+    [ed.images[i], ed.images[j]] = [ed.images[j], ed.images[i]];
+    renderPhotos(); return;
+  }
+  if (t.dataset.imgdel !== undefined) {
+    const [url] = ed.images.splice(+t.dataset.imgdel, 1);
+    if (ed.newUploads.includes(url)) { ed.newUploads = ed.newUploads.filter(u => u !== url); removeFiles([url]); }
+    else ed.removed.push(url);           // deleted from storage only after Save
+    renderPhotos(); return;
+  }
+});
+document.addEventListener("input", e => {
+  if (e.target.id === "q") { search = e.target.value; renderList(); }
+});
+document.addEventListener("change", e => {
+  if (e.target.name === "category" && ed) { readForm(); renderEditor(); }
+});
+
+/* =====================================================================
+   START
+   ===================================================================== */
+(async function boot() {
+  if (!CONFIGURED) return screenNotConfigured();
+  sb = window.supabase.createClient(C.supabaseUrl, C.supabaseAnonKey);
+  const recovering = /type=recovery/.test(location.hash);
+  sb.auth.onAuthStateChange(event => { if (event === "PASSWORD_RECOVERY") screenSetPassword(); });
+  if (recovering) { view.innerHTML = `<div class="center"><div class="spin"></div></div>`; return; }
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) enter(session.user); else screenLogin();
+})();
+</script>
+</body>
+</html>

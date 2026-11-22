@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<!--
+=====================================================================
+  RIY@ KLOSET: ONLINE SHOP (storefront)
+  Static page + Supabase (database, photo storage, admin logins).
+=====================================================================
+
+  HOW IT WORKS
+  ------------
+  • Products and shop details (WhatsApp, hours, delivery fees, MoMo number)
+    come from Supabase. The owner edits them at /admin.html from her phone.
+  • If config.js isn't filled in yet, the page runs in DEMO MODE with the
+    sample stock below, so you can still preview the design.
+  • Orders go to the owner on WhatsApp as a pre-filled message.
+    Mobile Money is paid manually AFTER she confirms the items on WhatsApp
+    (no payment gateway yet; see README "Next steps").
+  • The last loaded stock is cached in the browser so repeat visits open fast
+    on mobile data, then refresh in the background.
+
+  QUICK EDITS
+  -----------
+  • Default shop details (used until she saves her own in admin): "SECTION: CONFIG"
+  • Sample/demo products:                          "SECTION: PRODUCTS"
+  • Colours & fonts:                               "SECTION: THEME"
+  • Home page text (tagline etc.):                 "SECTION: HOME VIEW"
+  • About / story text:                            "SECTION: ABOUT VIEW"
+=====================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E1E1E">
+<title>Riy@ Kloset | Quality Thrift, Fashion & Phones</title>
+<meta name="description" content="Riy@ Kloset: checked, quality thrift clothing, bags, shoes and phones in Ghana. Order on WhatsApp, delivery in Accra and nationwide.">
+
+<style>
+/* ===================================================================
+   SECTION: THEME (colours, fonts, spacing). Change these first.
+   =================================================================== */
+:root{
+  /* Charcoal + white + orange palette (unisex). Variable names kept from v1 so nothing breaks:
+     --green = main brand colour (orange), --green-d = dark brand colour (charcoal) */
+  --green:#F26A1B;      /* main brand orange (buttons, active states) */
+  --green-d:#1E1E1E;    /* charcoal (header, footer, dark panels) */
+  --gold:#FF9F43;       /* light orange accent (the "@", highlights on dark) */
+  --red:#E03C31;        /* red (urgency: "Only 1 left") */
+  --cream:#F6F6F4;      /* off-white page background (white cards stand out) */
+  --ink:#1E1E1E;        /* main text */
+  --muted:#6B6B6B;      /* secondary text */
+  --line:#E4E4E0;       /* borders */
+  --blush:#FFF1E8;      /* soft orange fills */
+  --lav:#E6E6E3;        /* light grey accent */
+  --card:#FFFFFF;
+  --radius:16px;
+  --font: system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif; /* system fonts = zero download */
+}
+
+/* ---------- Base ---------- */
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--cream);color:var(--ink);line-height:1.45;padding-bottom:calc(68px + env(safe-area-inset-bottom))}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+/* ---------- Header ---------- */
+.top{position:sticky;top:0;z-index:40;background:var(--green-d);color:#fff}
+.top-in{display:flex;align-items:center;justify-content:space-between;height:62px;gap:12px}
+.logo{font-weight:900;font-size:1.55rem;letter-spacing:-.035em;line-height:1;display:flex;align-items:center;white-space:nowrap}
+.logo .at{display:inline-grid;place-items:center;width:1.02em;height:1.02em;border-radius:50%;background:var(--gold);color:var(--green-d);font-size:.86em;font-weight:900;margin:0 .07em 0 .03em;transform:rotate(-14deg);box-shadow:2px 2px 0 var(--green)}
+.logo .k{font-weight:500;margin-left:.22em;letter-spacing:-.01em}
+.nav{display:none;gap:4px}
+.nav a{padding:10px 16px;border-radius:999px;font-weight:700;font-size:.95rem;opacity:.9}
+.nav a.on,.nav a:hover{background:rgba(255,255,255,.12);opacity:1}
+.cart-btn{position:relative;width:48px;height:48px;display:grid;place-items:center;border-radius:14px;background:rgba(255,255,255,.1)}
+.cart-btn svg{width:24px;height:24px}
+.count{position:absolute;top:4px;right:3px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--gold);color:var(--ink);font-size:.72rem;font-weight:900;display:grid;place-items:center}
+.count[data-n="0"]{display:none}
+.kente{height:7px;background:repeating-linear-gradient(90deg,var(--gold) 0 22px,#FFFFFF 22px 30px,var(--green) 30px 52px,var(--lav) 52px 58px,var(--gold) 58px 62px,#FFFFFF 62px 66px)}
+@media(min-width:900px){.nav{display:flex}}
+
+/* ---------- Bottom nav (mobile) ---------- */
+.bnav{position:fixed;bottom:0;left:0;right:0;z-index:45;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 20px rgba(0,0,0,.05)}
+.bnav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:62px;font-size:.72rem;font-weight:700;color:var(--muted);position:relative}
+.bnav a.on{color:var(--green)}
+.bnav a.on::before{content:"";position:absolute;top:0;left:30%;right:30%;height:3px;border-radius:0 0 4px 4px;background:var(--gold)}
+.bnav svg{width:24px;height:24px}
+.bnav .count{top:6px;right:calc(50% - 22px)}
+@media(min-width:900px){.bnav{display:none}body{padding-bottom:0}}
+
+/* ---------- Floating WhatsApp button ---------- */
+.fab{position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));z-index:44;width:60px;height:60px;border-radius:50%;background:#25D366;color:#fff;display:grid;place-items:center;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.fab svg{width:32px;height:32px}
+.fab::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid #25D366;opacity:.5;animation:ring 2.4s infinite}
+@keyframes ring{0%{transform:scale(.9);opacity:.6}100%{transform:scale(1.25);opacity:0}}
+@media(min-width:900px){.fab{bottom:24px;right:24px}}
+@media(prefers-reduced-motion:reduce){.fab::after{animation:none}*{scroll-behavior:auto!important}}
+
+/* ---------- Buttons, chips ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 22px;border-radius:14px;font-weight:800;font-size:1rem;transition:transform .1s}
+.btn:active{transform:scale(.98)}
+.btn svg{width:20px;height:20px}
+.btn-gold{background:var(--gold);color:var(--ink)}
+.btn-green{background:var(--green);color:#fff}
+.btn-wa{background:#25D366;color:#04361b}
+.btn-ghost{border:2px solid rgba(255,255,255,.55);color:#fff}
+.btn-line{border:2px solid var(--line);background:#fff;color:var(--ink)}
+.btn-block{width:100%}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips.scroll{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chips.scroll::-webkit-scrollbar{display:none}
+.chip{min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-weight:700;font-size:.9rem;white-space:nowrap;display:inline-flex;align-items:center}
+.chip.on{background:var(--green);border-color:var(--green);color:#fff}
+
+/* ---------- Hero ---------- */
+.hero{background:linear-gradient(135deg,#2E2E2E 0%,#1E1E1E 55%,#141414 100%);color:#fff;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;right:-120px;top:-120px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(242,106,27,.45),transparent 65%)}
+.hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:7px;background:inherit}
+.hero-in{position:relative;padding:30px 16px 34px;display:grid;gap:26px;max-width:1180px;margin:0 auto}
+.eyebrow{display:inline-flex;gap:8px;align-items:center;background:rgba(255,255,255,.13);padding:7px 13px;border-radius:999px;font-size:.8rem;font-weight:800;width:max-content}
+.eyebrow i{width:8px;height:8px;border-radius:50%;background:var(--gold);display:block}
+.hero h1{font-size:clamp(2.1rem,9vw,3.8rem);line-height:1;font-weight:900;letter-spacing:-.035em;margin:14px 0 12px}
+.hero h1 em{font-style:normal;color:var(--gold)}
+.hero p{font-size:1.05rem;opacity:.92;max-width:34ch}
+.hero-cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.hero-cta .btn{flex:1 1 160px}
+.collage{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:end}
+.collage .tile{border-radius:16px;overflow:hidden;position:relative;aspect-ratio:3/4;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.collage .tile:nth-child(1){transform:rotate(-4deg)}
+.collage .tile:nth-child(2){transform:translateY(-14px);aspect-ratio:3/4.4}
+.collage .tile:nth-child(3){transform:rotate(4deg)}
+.collage .tag{position:absolute;left:8px;bottom:8px;background:#fff;color:var(--ink);font-weight:900;font-size:.8rem;padding:4px 9px;border-radius:999px}
+@media(min-width:900px){.hero-in{grid-template-columns:1.1fr 1fr;align-items:center;padding:56px 16px 64px}.hero p{font-size:1.15rem}.hero-cta .btn{flex:0 0 auto}}
+
+/* ---------- Trust strip ---------- */
+.trust{background:#fff;border-bottom:1px solid var(--line)}
+.trust-in{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:14px 16px}
+.trust-item{display:flex;align-items:center;gap:10px;font-size:.84rem;font-weight:700;line-height:1.2}
+.trust-item span{width:36px;height:36px;flex:none;border-radius:10px;display:grid;place-items:center;background:var(--blush);color:var(--green)}
+.trust-item svg{width:20px;height:20px}
+.trust-item small{display:block;font-weight:500;color:var(--muted);font-size:.75rem}
+@media(min-width:900px){.trust-in{grid-template-columns:repeat(4,1fr);padding:18px 16px}}
+
+/* ---------- Sections ---------- */
+.sec{padding:30px 0}
+.sec-h{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:14px}
+.sec-h h2{font-size:1.45rem;font-weight:900;letter-spacing:-.025em;line-height:1.1}
+.sec-h p{color:var(--muted);font-size:.88rem;margin-top:3px}
+.sec-h a{font-weight:800;color:var(--green);font-size:.9rem;white-space:nowrap;padding:10px 0}
+h1.page{font-size:1.75rem;font-weight:900;letter-spacing:-.03em;line-height:1.1}
+
+/* ---------- Category tiles ---------- */
+.cats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.cat{border-radius:var(--radius);padding:16px;min-height:120px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;font-weight:900;font-size:1.15rem}
+.cat svg{position:absolute;right:-8px;bottom:-10px;width:96px;height:96px;opacity:.9;color:#2B2B2B}
+.cat.wide svg{color:var(--green)}
+.cat small{display:block;font-size:.78rem;font-weight:600;opacity:.75}
+.cat .arrow{width:34px;height:34px;border-radius:50%;background:#fff;color:var(--green);display:grid;place-items:center;font-size:1rem}
+.cat.wide{grid-column:span 2;background:var(--green-d)!important;color:#fff}
+.cat.wide .arrow{background:var(--gold);color:var(--ink)}
+@media(min-width:900px){.cats{grid-template-columns:repeat(5,1fr)}.cat.wide{grid-column:auto}.cat{min-height:170px}}
+
+/* ---------- Product cards ---------- */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media(min-width:640px){.grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1040px){.grid{grid-template-columns:repeat(4,1fr);gap:16px}}
+.row{display:grid;grid-auto-flow:column;grid-auto-columns:46%;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 16px 6px;margin:0 -16px;scrollbar-width:none}
+.row::-webkit-scrollbar{display:none}
+@media(min-width:640px){.row{grid-auto-columns:31%}}
+@media(min-width:1040px){.row{grid-auto-columns:23.5%}}
+.card{background:var(--card);border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);display:flex;flex-direction:column;scroll-snap-align:start}
+.card-img{position:relative;aspect-ratio:4/5;display:block;overflow:hidden}
+.card-img img,.ph{width:100%;height:100%;object-fit:cover}
+.ph{display:grid;place-items:center;position:relative}
+.ph svg{width:44%;height:44%}
+.ph .ph-tag{position:absolute;bottom:8px;right:10px;font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.55}
+.badges{position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
+.badge{font-size:.68rem;font-weight:900;padding:4px 9px;border-radius:999px;background:var(--ink);color:#fff;letter-spacing:.01em}
+.badge.red{background:var(--red)}
+.badge.gold{background:var(--gold);color:var(--ink)}
+.badge.green{background:var(--green)}
+.card-body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:3px;flex:1}
+.card-name{font-weight:700;font-size:.93rem;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-meta{font-size:.78rem;color:var(--muted)}
+.card-foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:6px;padding-top:6px}
+.price{font-weight:900;font-size:1.15rem;letter-spacing:-.02em;line-height:1.1}
+.price s{display:block;font-weight:500;font-size:.75rem;color:var(--muted)}
+.add{width:46px;height:46px;flex:none;border-radius:13px;background:var(--green);color:#fff;display:grid;place-items:center}
+.add svg{width:22px;height:22px}
+.add.in{background:var(--gold);color:var(--ink)}
+
+/* Condition pills */
+.cond{display:inline-flex;align-items:center;gap:5px;font-size:.7rem;font-weight:800;padding:3px 8px;border-radius:6px;width:max-content;background:var(--blush);color:#C2520E}
+.cond::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.cond[data-c="Very Good"]{background:#EDEDEA;color:#2B2B2B}
+.cond[data-c="Good"]{background:#FFE9DA;color:#9A430B}
+.cond[data-c="UK Used"]{background:#E6E6E3;color:#333333}
+.cond[data-c="Refurbished"]{background:#F3E3D6;color:#8A3F10}
+
+/* ---------- Steps / how it works ---------- */
+.steps{display:grid;gap:12px}
+.step{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:flex;gap:14px;align-items:flex-start}
+.step b{width:40px;height:40px;flex:none;border-radius:12px;background:var(--gold);display:grid;place-items:center;font-weight:900;font-size:1.1rem}
+.step h3{font-size:1rem;font-weight:800}
+.step p{font-size:.88rem;color:var(--muted)}
+@media(min-width:900px){.steps{grid-template-columns:repeat(3,1fr)}}
+.band{background:var(--green-d);color:#fff;border-radius:20px;padding:22px;display:grid;gap:14px;position:relative;overflow:hidden}
+.band::after{content:"";position:absolute;right:0;top:0;bottom:0;width:10px;background:repeating-linear-gradient(180deg,var(--gold) 0 18px,#FFFFFF 18px 26px,var(--green) 26px 44px)}
+.band h2{font-size:1.35rem;font-weight:900;letter-spacing:-.02em}
+.band p{opacity:.8;font-size:.92rem}
+
+/* ---------- Shop view ---------- */
+.shop-head{padding:20px 0 6px}
+.search{position:relative;margin:14px 0 12px}
+.search input{width:100%;min-height:50px;border-radius:14px;border:1.5px solid var(--line);background:#fff;padding:0 16px 0 46px;font-size:1rem}
+.search svg{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:var(--muted)}
+.toolbar{display:flex;gap:10px;align-items:center;margin:12px 0}
+.toolbar .fbtn{min-height:46px;padding:0 16px;border-radius:12px;border:1.5px solid var(--ink);font-weight:800;display:inline-flex;align-items:center;gap:8px;background:#fff}
+.toolbar .fbtn svg{width:18px;height:18px}
+.toolbar .fbtn em{font-style:normal;background:var(--gold);border-radius:999px;padding:0 7px;font-size:.78rem}
+.toolbar select{min-height:46px;border-radius:12px;border:1.5px solid var(--line);background:#fff;padding:0 12px;font-weight:700;margin-left:auto;max-width:52%}
+.rcount{font-size:.85rem;color:var(--muted);margin-bottom:10px}
+.shop-layout{display:block}
+.fpanel{position:fixed;left:0;right:0;bottom:0;z-index:60;background:#fff;border-radius:22px 22px 0 0;max-height:86vh;display:flex;flex-direction:column;transform:translateY(105%);transition:transform .25s ease}
+.fpanel.open{transform:none}
+.fpanel-h{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
+.fpanel-h h3{font-weight:900;font-size:1.15rem}
+.fpanel-b{padding:6px 18px 18px;overflow-y:auto}
+.fpanel-f{padding:12px 18px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:10px}
+.fgroup{padding:14px 0;border-bottom:1px dashed var(--line)}
+.fgroup:last-child{border:0}
+.fgroup h4{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px}
+.fgroup select{width:100%;min-height:48px;border-radius:12px;border:1.5px solid var(--line);background:#fff;padding:0 12px;font-weight:700}
+.close-x{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--cream);font-size:1.3rem}
+.overlay{position:fixed;inset:0;background:rgba(20,20,20,.5);z-index:55;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.open{opacity:1;pointer-events:auto}
+.empty{background:#fff;border:1.5px dashed var(--line);border-radius:var(--radius);padding:30px 18px;text-align:center;grid-column:1/-1}
+.empty h3{font-weight:900;margin-bottom:6px}
+.empty p{color:var(--muted);font-size:.9rem;margin-bottom:14px}
+@media(min-width:900px){
+  .shop-layout{display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start}
+  .fpanel{position:sticky;top:84px;transform:none;border-radius:var(--radius);border:1px solid var(--line);max-height:calc(100vh - 100px);z-index:1}
+  .fpanel .close-x,.fpanel-f .btn-green,.toolbar .fbtn,.overlay{display:none}
+  .fpanel-f{padding:12px 18px}
+}
+
+/* ---------- Product detail ---------- */
+.crumb{font-size:.82rem;color:var(--muted);padding:14px 0}
+.crumb a{color:var(--green);font-weight:700}
+.pd{display:grid;gap:20px;padding-bottom:30px}
+.gallery-main{border-radius:20px;overflow:hidden;aspect-ratio:1/1;position:relative;border:1px solid var(--line)}
+.gallery-main img,.gallery-main .ph{width:100%;height:100%;object-fit:cover}
+.thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+.thumbs button{border-radius:12px;overflow:hidden;aspect-ratio:1/1;border:2px solid transparent;padding:0}
+.thumbs button.on{border-color:var(--green)}
+.thumbs .ph svg{width:50%;height:50%}
+.thumbs .ph .ph-tag{display:none}
+.pd h1{font-size:1.6rem;font-weight:900;letter-spacing:-.03em;line-height:1.12;margin:8px 0 6px}
+.pd .big-price{font-size:2rem;font-weight:900;letter-spacing:-.03em;color:var(--green-d)}
+.pd .big-price s{font-size:1rem;color:var(--muted);font-weight:500;margin-left:8px}
+.pd .save{display:inline-block;background:var(--gold);font-weight:900;font-size:.78rem;padding:3px 8px;border-radius:6px;margin-left:8px;vertical-align:middle}
+.stock{display:flex;align-items:center;gap:8px;font-weight:800;font-size:.9rem;margin:12px 0}
+.stock i{width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 0 4px rgba(210,35,42,.15)}
+.stock.ok i{background:#2E9E5B;box-shadow:0 0 0 4px rgba(242,106,27,.15)}
+.box{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin:12px 0}
+.box h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px}
+.box p{font-size:.95rem}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:.95rem}
+.kv dt{color:var(--muted)}
+.kv dd{font-weight:800;text-align:right}
+.battery{display:flex;align-items:center;gap:10px;justify-content:flex-end}
+.battery .bar{width:70px;height:14px;border-radius:4px;border:2px solid var(--ink);padding:1px;position:relative}
+.battery .bar::after{content:"";position:absolute;right:-5px;top:3px;width:3px;height:4px;background:var(--ink);border-radius:0 2px 2px 0}
+.battery .bar span{display:block;height:100%;border-radius:2px;background:#2E9E5B}
+.warranty{background:var(--blush);border:1px solid #FFD3B6;border-radius:var(--radius);padding:14px 16px;display:flex;gap:12px;margin:12px 0}
+.warranty svg{width:26px;height:26px;flex:none;color:var(--green)}
+.warranty b{display:block;margin-bottom:2px}
+.warranty p{font-size:.9rem}
+.actions{display:grid;gap:10px;margin:16px 0}
+.mini-trust{display:grid;gap:8px;font-size:.88rem;margin-top:6px}
+.mini-trust div{display:flex;gap:10px;align-items:center}
+.mini-trust svg{width:18px;height:18px;color:var(--green);flex:none}
+@media(min-width:900px){.pd{grid-template-columns:1.05fr 1fr;gap:40px}.pd h1{font-size:2.1rem}}
+
+/* ---------- Cart ---------- */
+.cart-layout{display:grid;gap:18px;padding:20px 0 34px}
+.citem{display:grid;grid-template-columns:84px 1fr auto;gap:12px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:10px;align-items:center}
+.citem .thumb{width:84px;height:100px;border-radius:12px;overflow:hidden}
+.citem .thumb svg{width:50%;height:50%}
+.citem .thumb .ph-tag{display:none}
+.citem h3{font-size:.95rem;font-weight:800;line-height:1.2}
+.citem .meta{font-size:.8rem;color:var(--muted);margin:3px 0}
+.citem .price{font-size:1.05rem}
+.rm{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--muted)}
+.rm svg{width:20px;height:20px}
+.qty{display:inline-flex;align-items:center;border:1.5px solid var(--line);border-radius:10px;margin-top:6px}
+.qty button{width:38px;height:38px;font-weight:900;font-size:1.1rem}
+.qty span{min-width:24px;text-align:center;font-weight:800}
+.one{font-size:.72rem;font-weight:800;color:var(--red);margin-top:4px}
+.summary{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px}
+.summary h2{font-size:1.15rem;font-weight:900;margin-bottom:4px}
+.opt{display:flex;gap:12px;align-items:center;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px;cursor:pointer;min-height:58px}
+.opt input{width:22px;height:22px;accent-color:var(--green);flex:none}
+.opt b{display:block;font-size:.95rem}
+.opt small{color:var(--muted);font-size:.8rem}
+.opt .fee{margin-left:auto;font-weight:900;white-space:nowrap}
+.opt.on{border-color:var(--green);background:#FFF6F0}
+.field{display:block;margin-top:10px}
+.field span{display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:5px}
+.field input{width:100%;min-height:50px;border-radius:12px;border:1.5px solid var(--line);padding:0 14px;font-size:1rem;background:#fff}
+.totals{border-top:1px dashed var(--line);margin-top:16px;padding-top:12px;display:grid;gap:6px;font-size:.95rem}
+.totals div{display:flex;justify-content:space-between}
+.totals .grand{font-size:1.3rem;font-weight:900;margin-top:4px}
+.hlabel{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:18px;font-weight:800}
+.nets{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.net{border:2px solid var(--line);border-radius:14px;padding:12px;min-height:64px;display:flex;align-items:center;gap:10px;font-weight:900;text-align:left;background:#fff}
+.net i{width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;font-style:normal;font-size:.7rem;font-weight:900}
+.net.mtn i{background:#FFCC00;color:#1A1410}
+.net.tel i{background:#E4002B;color:#fff}
+.net.on{border-color:var(--green);background:#FFF6F0}
+.secure{display:flex;gap:8px;align-items:center;justify-content:center;font-size:.78rem;color:var(--muted);margin-top:10px}
+.secure svg{width:14px;height:14px}
+@media(min-width:900px){.cart-layout{grid-template-columns:1.4fr 1fr;align-items:start}.summary{position:sticky;top:84px}}
+
+/* ---------- About ---------- */
+.about-hero{background:linear-gradient(135deg,#2E2E2E,#161616);color:#fff;border-radius:22px;padding:26px 22px;margin:20px 0;position:relative;overflow:hidden}
+.about-hero h1{font-size:2rem;font-weight:900;letter-spacing:-.03em;line-height:1.05;margin-bottom:10px}
+.about-hero h1 em{font-style:normal;color:var(--gold)}
+.about-hero p{opacity:.85;max-width:60ch}
+.about-hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:8px;background:repeating-linear-gradient(90deg,var(--gold) 0 22px,#FFFFFF 22px 30px,var(--green) 30px 52px)}
+.two{display:grid;gap:16px}
+@media(min-width:900px){.two{grid-template-columns:1fr 1fr}}
+.panel{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px}
+.panel h2{font-size:1.2rem;font-weight:900;margin-bottom:10px;letter-spacing:-.02em}
+.hours{width:100%;border-collapse:collapse;font-size:.95rem}
+.hours td{padding:10px 0;border-bottom:1px dashed var(--line)}
+.hours td:last-child{text-align:right;font-weight:800}
+.hours tr.today td{color:var(--green)}
+.map{border-radius:16px;aspect-ratio:16/10;position:relative;overflow:hidden;background:
+  linear-gradient(90deg,rgba(242,106,27,.08) 1px,transparent 1px) 0 0/28px 28px,
+  linear-gradient(rgba(242,106,27,.08) 1px,transparent 1px) 0 0/28px 28px,#F1F1EE;margin-bottom:12px}
+.map::before{content:"";position:absolute;left:-10%;right:-10%;top:58%;height:18px;background:#fff;transform:rotate(-8deg);box-shadow:0 0 0 2px #E0E0DC}
+.map::after{content:"";position:absolute;top:-10%;bottom:-10%;left:38%;width:14px;background:#fff;transform:rotate(12deg);box-shadow:0 0 0 2px #E0E0DC}
+.pin{position:absolute;left:50%;top:44%;transform:translate(-50%,-100%);z-index:2;text-align:center}
+.pin svg{width:46px;height:46px;color:var(--red);filter:drop-shadow(0 4px 6px rgba(0,0,0,.25))}
+.pin span{display:block;background:var(--ink);color:#fff;font-weight:800;font-size:.75rem;padding:4px 10px;border-radius:999px;margin-top:2px;white-space:nowrap}
+.dl{display:grid;gap:10px}
+.dl div{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:14px;background:var(--cream)}
+.dl b{display:block}
+.dl small{color:var(--muted)}
+.dl .fee{margin-left:auto;font-weight:900;white-space:nowrap}
+.glist{display:grid;gap:10px}
+.glist div{display:flex;gap:12px;align-items:flex-start;font-size:.92rem}
+.glist .cond{flex:none;margin-top:2px;min-width:96px}
+
+/* ---------- Footer ---------- */
+footer{background:var(--green-d);color:#fff;margin-top:30px}
+.foot-in{padding:30px 16px 24px;display:grid;gap:22px}
+footer p{opacity:.8;font-size:.9rem}
+.socials{display:flex;gap:10px}
+.socials a{width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.1);display:grid;place-items:center}
+.socials svg{width:22px;height:22px}
+.flinks{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.flinks a{padding:8px 0;font-weight:700;opacity:.9}
+.fine{border-top:1px solid rgba(255,255,255,.12);padding:14px 16px;font-size:.75rem;opacity:.65;text-align:center}
+@media(min-width:900px){.foot-in{grid-template-columns:1.4fr 1fr 1fr}}
+
+/* ---------- Toast & modal ---------- */
+.toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:var(--ink);color:#fff;padding:12px 18px;border-radius:14px;font-weight:700;font-size:.92rem;z-index:80;opacity:0;pointer-events:none;transition:.25s;display:flex;gap:10px;align-items:center;max-width:92vw}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast a{color:var(--gold);font-weight:900;white-space:nowrap}
+@media(min-width:900px){.toast{bottom:30px}}
+.modal{position:fixed;inset:0;z-index:90;display:none;place-items:center;padding:16px;background:rgba(20,20,20,.6)}
+.modal.open{display:grid}
+.modal-box{background:#fff;border-radius:22px;padding:24px 20px;max-width:400px;width:100%;text-align:center}
+.modal-box h3{font-size:1.25rem;font-weight:900;margin:10px 0 6px}
+.modal-box p{color:var(--muted);font-size:.93rem;margin-bottom:16px}
+.spinner{width:52px;height:52px;border-radius:50%;border:5px solid var(--blush);border-top-color:var(--green);margin:6px auto;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tick{width:60px;height:60px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;margin:0 auto}
+.tick svg{width:32px;height:32px}
+.prow{display:grid;grid-template-columns:1.3fr 1fr;gap:10px}
+.field select{width:100%;min-height:50px;border-radius:12px;border:1.5px solid var(--line);padding:0 12px;font-size:1rem;background:#fff;font-weight:700}
+.field .hint{display:block;font-size:.78rem;color:var(--muted);margin-top:6px}
+.initial{width:30px;height:30px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-weight:900;font-size:.95rem}
+.acct{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+.acct .panel{margin-top:14px}
+.atabs{display:grid;grid-template-columns:1fr 1fr;background:#fff;border:1px solid var(--line);border-radius:14px;padding:4px;margin:16px 0 4px}
+.atabs a{min-height:44px;border-radius:10px;font-weight:800;display:grid;place-items:center}
+.atabs a.on{background:var(--ink);color:#fff}
+.linkbtn{color:var(--green);font-weight:800;padding:10px 0;background:none;text-decoration:underline}
+.danger{border-color:#F3C4C0!important}
+.danger h2{color:var(--red)}
+.btn-red{background:var(--red);color:#fff}
+.morder{border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:10px;font-size:.9rem}
+.morder .mtop{display:flex;justify-content:space-between;gap:8px;font-weight:800}
+.ostat{font-size:.72rem;font-weight:800;padding:3px 8px;border-radius:6px;background:var(--blush);color:#C2520E}
+.prose h2{margin:18px 0 6px;font-size:1.1rem}
+.prose p,.prose li{color:var(--muted);font-size:.95rem;margin-bottom:8px}
+.prose ul{padding-left:20px}
+.demo-bar{background:var(--gold);color:var(--ink);font-size:.82rem;font-weight:800;text-align:center;padding:8px 12px}
+.loading{padding:80px 16px;text-align:center;color:var(--muted);font-weight:700}
+.demo-note{display:inline-block;background:var(--blush);color:#C2520E;font-size:.72rem;font-weight:800;padding:4px 9px;border-radius:6px;margin-bottom:4px}
+</style>
+<!-- Supabase keys (edit config.js) + Supabase client library -->
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- ===================== HEADER ===================== -->
+<header class="top">
+  <div class="wrap top-in">
+    <a href="#/" class="logo" aria-label="Riy@ Kloset home">Riy<span class="at">@</span><span class="k">Kloset</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="#/" data-nav="home">Home</a>
+      <a href="#/shop" data-nav="shop">Shop</a>
+      <a href="#/phones" data-nav="phones">Phones</a>
+      <a href="#/about" data-nav="about">Visit Us</a>
+    </nav>
+    <div style="display:flex;gap:8px">
+    <a href="#/account" class="cart-btn" aria-label="My account" id="acctBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    </a>
+    <a href="#/cart" class="cart-btn" aria-label="Cart">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>
+      <span class="count" data-n="0">0</span>
+    </a>
+    </div>
+  </div>
+  <div class="kente" aria-hidden="true"></div>
+</header>
+
+<!-- ===================== PAGE CONTENT (rendered by JS) ===================== -->
+<main id="app"></main>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="foot-in wrap">
+    <div>
+      <div class="logo" style="margin-bottom:10px">Riy<span class="at">@</span><span class="k">Kloset</span></div>
+      <p>Quality thrift, fresh bales and tested phones, picked and checked by hand in <span data-city></span>.</p>
+      <p style="margin-top:8px;opacity:1;font-weight:800">📞 <a id="footPhone" href="#"></a></p>
+      <div class="socials" style="margin-top:14px">
+        <a id="ig" href="#" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg></a>
+        <a id="tt" href="#" target="_blank" rel="noopener" aria-label="TikTok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 3v11.5A3.5 3.5 0 1 1 10.5 11"/><path d="M14 3c.4 2.6 2.4 4.4 5 4.6"/></svg></a>
+        <a class="wa-link" href="#" target="_blank" rel="noopener" aria-label="WhatsApp"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.2.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3c.2-.4.2-.9.2-1-.1-.1-.3-.2-.5-.3z"/></svg></a>
+      </div>
+    </div>
+    <div>
+      <p style="font-weight:900;opacity:1;margin-bottom:6px">Shop</p>
+      <div class="flinks">
+        <a href="#/shop?cat=men">Men</a><a href="#/shop?cat=women">Women</a>
+        <a href="#/shop?cat=bags">Bags</a><a href="#/shop?cat=shoes">Shoes</a>
+        <a href="#/phones">Phones</a><a href="#/shop">All items</a>
+      </div>
+    </div>
+    <div>
+      <p style="font-weight:900;opacity:1;margin-bottom:6px">Help</p>
+      <div class="flinks">
+        <a href="#/about">Visit Us</a><a href="#/about">Delivery</a>
+        <a href="#/about">Condition guide</a><a href="#/account">My account</a>
+        <a href="#/cart">My cart</a><a href="#/privacy">Privacy</a>
+      </div>
+    </div>
+  </div>
+  <div class="fine">© <span id="yr"></span> Riy@ Kloset · <span data-city></span>, Ghana</div>
+</footer>
+
+<!-- ===================== BOTTOM NAV (mobile) ===================== -->
+<nav class="bnav" aria-label="Quick">
+  <a href="#/" data-nav="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+  <a href="#/shop" data-nav="shop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>Shop</a>
+  <a href="#/phones" data-nav="phones"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>Phones</a>
+  <a href="#/cart" data-nav="cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>Cart<span class="count" data-n="0">0</span></a>
+  <a href="#/about" data-nav="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Visit</a>
+</nav>
+
+<!-- ===================== FLOATING WHATSAPP ===================== -->
+<a class="fab wa-link" href="#" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.2.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3c.2-.4.2-.9.2-1-.1-.1-.3-.2-.5-.3z"/></svg>
+</a>
+
+<div class="overlay" id="overlay"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   SECTION: CONFIG. Default shop details.
+   These are only used until the owner saves "Shop settings" in admin.html.
+   ===================================================================== */
+let CONFIG = {
+  momoNumber: "",                       // MoMo number customers pay to (set in admin)
+  momoName: "",                         // name registered on that MoMo number
+  city: "Accra",                        // shop city
+  whatsapp: "233207411266",             // her WhatsApp in international format, NO "+" or spaces
+  phone: "+233 20 741 1266",            // shown on the site for calls
+  instagram: "https://instagram.com/",  // e.g. https://instagram.com/riyakloset
+  tiktok: "https://tiktok.com/",        // e.g. https://tiktok.com/@riyakloset
+  address: "[Street / landmark], Accra, Ghana",
+  landmark: "Opposite [landmark]. Look for the green & gold sign",
+  hours: [                              // [day label, hours]. Order = Mon..Sun
+    ["Monday", "9:00am – 7:00pm"], ["Tuesday", "9:00am – 7:00pm"], ["Wednesday", "9:00am – 7:00pm"],
+    ["Thursday", "9:00am – 7:00pm"], ["Friday", "9:00am – 8:00pm"], ["Saturday", "8:00am – 8:00pm"],
+    ["Sunday", "1:00pm – 6:00pm"]
+  ],
+  delivery: [                           // shown in cart + Visit Us page
+    { id: "pickup", label: "Pick up in store", note: "Try it on before you take it", fee: 0 },
+    { id: "accra",  label: "Accra delivery",   note: "Same / next day by dispatch rider", fee: 40 },
+    { id: "nation", label: "Nationwide courier", note: "2–4 days via bus courier (VIP / STC)", fee: 60 }
+  ]
+};
+
+/* Condition grade explanations (used on product pages + Visit Us page) */
+const COND_INFO = {
+  "New":         "Brand new, never worn or used.",
+  "Like New":    "Worn once or twice. No visible flaws at all.",
+  "Very Good":   "Light signs of wear. No stains, holes or damage.",
+  "Good":        "Visible wear, priced to match. Any flaw is shown in photos and described.",
+  "UK Used":     "Pre-owned phone, fully working and tested by us. May have light marks.",
+  "Refurbished": "Restored to full working order, cleaned and tested."
+};
+
+/* Warranty / return note shown on each phone, by condition */
+const PHONE_WARRANTY = {
+  "New":         "Sealed box. 1-month shop warranty + 7-day replacement for any factory fault.",
+  "UK Used":     "Tested before sale. 7-day return if any fault is found, plus 2-week shop warranty.",
+  "Refurbished": "1-month shop warranty covering hardware faults. 7-day return if not as described."
+};
+
+/* =====================================================================
+   SECTION: PRODUCTS. Sample stock. Edit names, prices, sizes, photos.
+   ---------------------------------------------------------------------
+   cat:       "men" | "women" | "bags" | "shoes" | "phones"
+   price/old: GH₵ (whole numbers). "old" = previous price → shows in Hot Deals
+   size:      single size (thrift)  OR  sizes: ["M","L","XL"] (new multi-size stock)
+   condition: "New" | "Like New" | "Very Good" | "Good"   (phones: "New" | "UK Used" | "Refurbished")
+   stock:     1 = one-of-a-kind ("Only 1 left")
+   fresh:     true → appears in "Fresh Bales / New Arrivals"
+   added:     days since it arrived (used for "Newest" sort; 0 = today)
+   tone:      placeholder colour 0–5 (ignored once you add photos)
+   images:    ["https://...front.jpg","https://...back.jpg","https://...detail.jpg"]
+              Leave empty [] to show the coloured placeholder.
+   ===================================================================== */
+/* Demo stock: shown only when Supabase isn't connected yet (config.js empty). */
+const SAMPLE_PRODUCTS = [
+  /* ---------- MEN ---------- */
+  { id:"m1", cat:"men", name:"Vintage Levi's 501 Straight Jeans", price:180, size:"32", condition:"Very Good", stock:1, fresh:true, added:1, tone:4,
+    measure:"Waist 32in · Inside leg 31in", desc:"Classic mid-blue wash with button fly. Natural fading on the thighs, no rips or stains. Thick denim that lasts for years.", images:[] },
+  { id:"m2", cat:"men", name:"Ralph Lauren Slim Oxford Shirt, Sky Blue", price:120, old:150, size:"L", condition:"Like New", stock:1, added:6, tone:4,
+    measure:"Chest 44in · Length 30in", desc:"Crisp cotton oxford with the signature embroidered pony. Collar and cuffs clean, no fading. Office or church ready.", images:[] },
+  { id:"m3", cat:"men", name:"Nike Dri-FIT Polo, Black", price:85, size:"M", condition:"Very Good", stock:2, added:4, tone:5,
+    measure:"Chest 40in · Length 28in", desc:"Lightweight sports polo that dries fast in the heat. Logo intact, no pilling.", images:[] },
+  { id:"m4", cat:"men", name:"Tommy Hilfiger Chino Trousers, Khaki", price:110, size:"34", condition:"Good", stock:1, added:12, tone:0,
+    measure:"Waist 34in · Inside leg 32in", desc:"Smart-casual chinos with a straight fit. Slight wear on the back pocket edge (see photo 3). Priced to match.", images:[] },
+  { id:"m5", cat:"men", name:"Corduroy Trucker Jacket, Brown", price:220, size:"XL", condition:"Very Good", stock:1, fresh:true, added:0, tone:5,
+    measure:"Chest 48in · Length 27in", desc:"Rare find from this week's bale. Soft wide-wale cord with warm sherpa collar. Good for Harmattan mornings and AC offices.", images:[] },
+  { id:"m6", cat:"men", name:"Heavyweight Plain Tee (New)", price:65, sizes:["M","L","XL","XXL"], condition:"New", stock:12, added:3, tone:1,
+    desc:"Brand new 240gsm cotton tee. Holds its shape after washing. Available in black. Ask on WhatsApp for white & olive.", images:[] },
+
+  /* ---------- WOMEN ---------- */
+  { id:"w1", cat:"women", name:"Floral Wrap Midi Dress", price:140, size:"UK 10", condition:"Like New", stock:1, fresh:true, added:0, tone:2,
+    measure:"Bust 36in · Length 47in", desc:"Flowy viscose wrap dress with tie waist and flutter sleeves. Perfect for weddings, brunch and Sunday service.", images:[] },
+  { id:"w2", cat:"women", name:"Zara Linen Wide-Leg Trousers, Cream", price:130, old:160, size:"UK 12", condition:"Very Good", stock:1, added:8, tone:0,
+    measure:"Waist 30in · Length 41in", desc:"Breathable linen blend with high waist and side pockets. Cool and classy in Accra heat.", images:[] },
+  { id:"w3", cat:"women", name:"Satin Slip Midi Skirt, Champagne", price:95, size:"UK 8", condition:"Like New", stock:1, added:2, tone:0,
+    measure:"Waist 27in (elastic) · Length 33in", desc:"Bias-cut satin with a soft sheen. Dress it up with heels or down with sneakers.", images:[] },
+  { id:"w4", cat:"women", name:"Oversized Denim Shirt", price:90, size:"M", condition:"Good", stock:1, added:15, tone:4,
+    measure:"Bust 44in · Length 29in", desc:"Relaxed fit, light wash. Small faded spot near the hem (shown in photos). Great as a light jacket.", images:[] },
+  { id:"w5", cat:"women", name:"Ribbed Bodycon Dress, Emerald", price:110, size:"UK 14", condition:"Very Good", stock:1, fresh:true, added:1, tone:1,
+    measure:"Bust 38in · Length 40in", desc:"Stretchy ribbed knit that hugs and holds. Rich emerald colour. Looks premium, feels comfy.", images:[] },
+  { id:"w6", cat:"women", name:"Chunky Knit Cardigan, Mustard", price:100, old:130, size:"L", condition:"Very Good", stock:1, added:9, tone:0,
+    measure:"Bust 42in · Length 26in", desc:"Soft cotton-blend knit with wooden buttons. No snags. Throw it over anything.", images:[] },
+
+  /* ---------- BAGS ---------- */
+  { id:"b1", cat:"bags", name:"Michael Kors Leather Tote, Black", price:450, size:"One size", condition:"Very Good", stock:1, fresh:true, added:2, tone:5,
+    measure:"W 34cm · H 28cm · D 13cm", desc:"Genuine saffiano leather with gold hardware. Corners clean, lining spotless. Fits a laptop up to 13in.", images:[] },
+  { id:"b2", cat:"bags", name:"Mini Crossbody Bag (New)", price:120, size:"One size", condition:"New", stock:6, added:5, tone:2,
+    measure:"W 20cm · H 13cm", desc:"Brand new structured mini bag with adjustable chain strap. Fits phone, cards and lip gloss. Black, nude & red.", images:[] },
+  { id:"b3", cat:"bags", name:"Vintage Leather Backpack, Tan", price:260, old:320, size:"One size", condition:"Good", stock:1, added:11, tone:0,
+    measure:"W 30cm · H 40cm", desc:"Thick full-grain leather that gets better with age. Light scuffs on the base, all zips work perfectly.", images:[] },
+  { id:"b4", cat:"bags", name:"Woven Straw Beach Bag", price:85, size:"One size", condition:"Like New", stock:1, added:7, tone:0,
+    measure:"W 42cm · H 30cm", desc:"Handwoven straw with leather handles. Made for Labadi weekends and holiday trips.", images:[] },
+
+  /* ---------- SHOES ---------- */
+  { id:"s1", cat:"shoes", name:"Nike Air Force 1 '07, White", price:480, size:"UK 9 / EU 44", condition:"Very Good", stock:1, fresh:true, added:1, tone:3,
+    desc:"Deep-cleaned and deodorised. Light creasing on the toe box, soles have plenty of life left. Authentic, checked.", images:[] },
+  { id:"s2", cat:"shoes", name:"Adidas Samba OG, Black/White", price:550, size:"UK 6 / EU 39", condition:"Like New", stock:1, added:3, tone:5,
+    desc:"Barely worn, almost no sole wear. One of this year's most wanted sneakers at a thrift price.", images:[] },
+  { id:"s3", cat:"shoes", name:"Block-Heel Strappy Sandals, Nude", price:140, old:180, size:"UK 5 / EU 38", condition:"Very Good", stock:1, added:10, tone:2,
+    desc:"Comfortable 6cm block heel you can actually dance in. Buckles and straps all strong.", images:[] },
+  { id:"s4", cat:"shoes", name:"Leather Chelsea Boots, Dark Brown", price:320, size:"UK 10 / EU 45", condition:"Good", stock:1, added:14, tone:5,
+    desc:"Real leather upper, freshly polished. Some heel wear (see photos). Easy re-sole at any cobbler if needed.", images:[] },
+
+  /* ---------- PHONES ---------- */
+  { id:"p1", cat:"phones", name:"iPhone 13", brand:"Apple", price:7800, storage:"128GB", ram:"4GB", colour:"Midnight", condition:"UK Used", battery:88, stock:1, fresh:true, added:1, tone:5,
+    box:"Phone + cable", desc:"Clean, fully working unit. Face ID, cameras, speakers and charging all tested. Hairline mark on the frame, screen spotless.", images:[] },
+  { id:"p2", cat:"phones", name:"iPhone 11", brand:"Apple", price:4200, old:4600, storage:"64GB", ram:"4GB", colour:"Black", condition:"UK Used", battery:84, stock:1, added:6, tone:5,
+    box:"Phone + cable", desc:"Great starter iPhone. Everything works including Face ID and True Tone. Light wear on the back glass edges.", images:[] },
+  { id:"p3", cat:"phones", name:"Samsung Galaxy S22", brand:"Samsung", price:5900, storage:"128GB", ram:"8GB", colour:"Phantom Black", condition:"Refurbished", battery:91, stock:1, added:3, tone:4,
+    box:"Phone + fast charger + cable", desc:"Professionally refurbished with a new back glass. Flagship camera and 120Hz screen. Looks almost new.", images:[] },
+  { id:"p4", cat:"phones", name:"Samsung Galaxy A15", brand:"Samsung", price:2350, storage:"128GB", ram:"6GB", colour:"Blue Black", condition:"New", battery:100, stock:4, fresh:true, added:2, tone:4,
+    box:"Sealed box: phone, cable, SIM pin", desc:"Brand new and sealed. Big 6.5in AMOLED screen and 5000mAh battery that lasts all day.", images:[] },
+  { id:"p5", cat:"phones", name:"Tecno Camon 30", brand:"Tecno", price:3100, storage:"256GB", ram:"8GB", colour:"Silver", condition:"New", battery:100, stock:3, added:4, tone:3,
+    box:"Sealed box: phone, 70W charger, case", desc:"Brand new. 50MP selfie camera and lots of storage for videos. Fast charging in the box.", images:[] },
+  { id:"p6", cat:"phones", name:"Xiaomi Redmi Note 13", brand:"Xiaomi", price:2900, old:3200, storage:"256GB", ram:"8GB", colour:"Mint Green", condition:"New", battery:100, stock:2, added:8, tone:1,
+    box:"Sealed box: phone, 33W charger, case", desc:"Brand new, global version. 108MP camera, smooth AMOLED display. Excellent value.", images:[] },
+  { id:"p7", cat:"phones", name:"iPhone XR", brand:"Apple", price:2700, storage:"64GB", ram:"3GB", colour:"White", condition:"UK Used", battery:82, stock:1, added:9, tone:3,
+    box:"Phone + cable", desc:"Budget-friendly iPhone, fully tested. Minor scratches on the frame, screen is clean.", images:[] }
+];
+let PRODUCTS = [];   // filled by loadData()
+
+/* =====================================================================
+   SECTION: ICONS & PLACEHOLDER IMAGES
+   ===================================================================== */
+const SVG = (d, extra="") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
+const ICON = {
+  men:    SVG('<path d="M8.5 3 3.5 5.8l1.8 4 2.2-1V21h9V8.8l2.2 1 1.8-4L15.5 3c-.6 1.7-1.9 2.6-3.5 2.6S9.1 4.7 8.5 3z"/>'),
+  women:  SVG('<path d="M9.5 2.5h5l-1 4.2L18 21H6l4.5-14.3z"/><path d="M10.4 6.7h3.2"/>'),
+  bags:   SVG('<path d="M4.5 8.5h15l-1.2 12h-12.6z"/><path d="M9 8.5V6.5a3 3 0 0 1 6 0v2"/>'),
+  shoes:  SVG('<path d="M2.5 17.5c0-3.5 1.5-8 3.5-8l3 3c2 1.2 5 1.4 7.5 2.2 3 .9 5 2 5 3.3v1.5h-19z"/><path d="M2.5 17.5h19"/>'),
+  phones: SVG('<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>'),
+  plus:   SVG('<path d="M12 5v14M5 12h14"/>','stroke-width="2.4"'),
+  check:  SVG('<path d="m5 12.5 4.5 4.5L19 7.5"/>','stroke-width="2.4"'),
+  shield: SVG('<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m8.8 12 2.2 2.2 4.3-4.4"/>','stroke-width="2"'),
+  truck:  SVG('<path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3v3h-7"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="16.5" cy="17.5" r="1.8"/>','stroke-width="2"'),
+  eye:    SVG('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>','stroke-width="2"'),
+  chat:   SVG('<path d="M4 18.5 5.2 15A7.5 7.5 0 1 1 8.5 18z"/>','stroke-width="2"'),
+  trash:  SVG('<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>','stroke-width="2"'),
+  search: SVG('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>','stroke-width="2"'),
+  filter: SVG('<path d="M4 6h16M7 12h10M10 18h4"/>','stroke-width="2.2"'),
+  lock:   SVG('<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>','stroke-width="2"'),
+  pin:    `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7.5 7.5 0 0 0-7.5 7.5C4.5 15 12 22 12 22s7.5-7 7.5-12.5A7.5 7.5 0 0 0 12 2zm0 10.2a2.7 2.7 0 1 1 0-5.4 2.7 2.7 0 0 1 0 5.4z"/></svg>`,
+  wa:     `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.2.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3c.2-.4.2-.9.2-1-.1-.1-.3-.2-.5-.3z"/></svg>`
+};
+/* Placeholder colour pairs [background, icon colour] */
+/* Neutral greys + soft oranges so placeholders match the charcoal/orange theme */
+const TONES = [["#EFEFED","#2B2B2B"],["#FFE9DA","#D9560F"],["#E2E2DF","#3A3A3A"],["#FFF3EA","#F26A1B"],["#D9D9D6","#1E1E1E"],["#F7E1D2","#B8480C"]];
+const VIEW_LABELS = ["Front","Back","Detail","Label"];
+
+/* Returns a real <img> if the product has a photo for that slot, otherwise a coloured placeholder */
+function pic(p, slot = 0) {
+  if (p.images && p.images[slot]) return `<img src="${p.images[slot]}" alt="${p.name}" loading="lazy" decoding="async">`;
+  const [bg, fg] = TONES[(p.tone + slot) % TONES.length];
+  return `<div class="ph" style="background:${bg};color:${fg}">${ICON[p.cat]}<span class="ph-tag">${VIEW_LABELS[slot]}</span></div>`;
+}
+
+/* =====================================================================
+   SECTION: HELPERS & STATE
+   ===================================================================== */
+const $ = (s, el = document) => el.querySelector(s);
+const app = $("#app");
+const cedi = n => "GH₵" + Math.round(n).toLocaleString("en-US");
+const byId = id => PRODUCTS.find(p => p.id === id);
+const sizesOf = p => p.sizes || (p.size ? [p.size] : []);
+const CAT_NAMES = { men:"Men", women:"Women", bags:"Bags", shoes:"Shoes", phones:"Phones", all:"All items" };
+
+// localStorage can be unavailable (some previews / private modes). Fail quietly.
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+
+const state = {
+  cart: store.get("rk_cart", []),           // [{id, size, qty}]
+  f: freshFilters(),                         // shop filters
+  mode: null, cat: null, base: [],
+  selSize: null,
+  checkout: { name:"", phone:"", area:"", delivery:"accra", pay:"momo", pickupDate:"", pickupTime:"" }
+};
+function freshFilters() { return { q:"", size:"", price:"", cond:[], brand:"", storage:"", sort:"new" }; }
+
+/* ---------- Safety: everything typed in admin is escaped before it's shown ---------- */
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const plain = s => { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; }; // undo esc for WhatsApp text
+
+/* =====================================================================
+   SECTION: DATA (Supabase)
+   ===================================================================== */
+let DEMO = false, LOAD_ERROR = false, sb = null;
+function hasBackend() {
+  const c = window.RK_CONFIG || {};
+  return !!(c.supabaseUrl && c.supabaseAnonKey && !/YOUR/.test(c.supabaseUrl + c.supabaseAnonKey) && window.supabase);
+}
+function toneFrom(id) { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 6; }
+
+/* Database row → the product shape the page uses */
+function fromRow(r) {
+  const sizes = (r.sizes || []).filter(Boolean).map(esc);
+  return {
+    id: r.id, cat: r.category, name: esc(r.name), price: Number(r.price),
+    old: r.old_price && Number(r.old_price) > Number(r.price) ? Number(r.old_price) : null,
+    size: sizes.length === 1 ? sizes[0] : undefined, sizes: sizes.length > 1 ? sizes : undefined,
+    condition: r.condition, stock: r.stock ?? 1, fresh: !!r.fresh,
+    added: Math.max(0, Math.floor((Date.now() - new Date(r.created_at)) / 864e5)),
+    tone: toneFrom(r.id), measure: esc(r.measurements), desc: esc(r.description),
+    images: (r.images || []).filter(u => /^(https:\/\/|data:image\/)/.test(u)).map(esc),
+    brand: esc(r.brand), storage: esc(r.storage), ram: esc(r.ram), colour: esc(r.colour),
+    battery: r.battery ?? 100, box: esc(r.in_box)
+  };
+}
+/* Settings saved in admin → CONFIG (escaped) */
+function cleanSettings(d) {
+  const out = {};
+  for (const [k, v] of Object.entries(d || {})) {
+    if (typeof v === "string") out[k] = esc(v);
+    else if (k === "hours" && Array.isArray(v)) out.hours = v.map(([a, b]) => [esc(a), esc(b)]);
+    else if (k === "delivery" && Array.isArray(v)) out.delivery = v.map(o => ({ id: esc(o.id), label: esc(o.label), note: esc(o.note), fee: Number(o.fee) || 0 }));
+  }
+  if (out.whatsapp) out.whatsapp = plain(out.whatsapp).replace(/\D/g, "");
+  if (out.instagram && !/^https:\/\//.test(out.instagram)) delete out.instagram;
+  if (out.tiktok && !/^https:\/\//.test(out.tiktok)) delete out.tiktok;
+  return out;
+}
+async function loadData() {
+  if (!hasBackend()) { DEMO = true; PRODUCTS = SAMPLE_PRODUCTS; return; }
+  const c = window.RK_CONFIG;
+  sb = sb || window.supabase.createClient(c.supabaseUrl, c.supabaseAnonKey);
+  try {
+    const [prods, set] = await Promise.all([
+      sb.from("products").select("*").eq("status", "active").order("created_at", { ascending: false }),
+      sb.from("settings").select("data").eq("id", 1).maybeSingle()
+    ]);
+    if (prods.error) throw prods.error;
+    PRODUCTS = prods.data.map(fromRow);
+    if (set.data && set.data.data) CONFIG = { ...CONFIG, ...cleanSettings(set.data.data) };
+    LOAD_ERROR = false;
+    store.set("rk_cache", { p: prods.data, s: set.data ? set.data.data : null });
+  } catch (err) {
+    console.error("Could not load shop data", err);
+    LOAD_ERROR = !PRODUCTS.length;
+  }
+}
+
+function waLink(text) { return `https://wa.me/${CONFIG.whatsapp}` + (text ? `?text=${encodeURIComponent(text)}` : ""); }
+
+function toast(msg, linkHtml = "") {
+  const t = $("#toast");
+  t.innerHTML = `<span>${msg}</span>${linkHtml}`;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+/* ---------- Badges & cards ---------- */
+function badges(p) {
+  let b = "";
+  if (p.stock === 1) b += `<span class="badge red">Only 1 left</span>`;
+  else if (p.stock <= 3) b += `<span class="badge red">Only ${p.stock} left</span>`;
+  if (p.old) b += `<span class="badge gold">-${Math.round((1 - p.price / p.old) * 100)}%</span>`;
+  if (p.fresh) b += `<span class="badge green">Fresh bale</span>`;
+  return `<div class="badges">${b}</div>`;
+}
+function inCart(id) { return state.cart.some(i => i.id === id); }
+
+function card(p) {
+  const meta = p.cat === "phones"
+    ? `${p.storage} · ${p.ram} RAM · 🔋${p.battery}%`
+    : (p.sizes ? `Sizes ${p.sizes.join(", ")}` : `Size ${p.size}`);
+  const btn = p.sizes && p.sizes.length > 1
+    ? `<a class="add" href="#/p/${p.id}" aria-label="Choose size for ${p.name}">${ICON.plus}</a>`
+    : `<button class="add ${inCart(p.id) ? "in" : ""}" data-add="${p.id}" aria-label="Add ${p.name} to cart">${inCart(p.id) ? ICON.check : ICON.plus}</button>`;
+  return `<article class="card">
+    <a class="card-img" href="#/p/${p.id}">${pic(p)}${badges(p)}</a>
+    <div class="card-body">
+      <span class="cond" data-c="${p.condition}">${p.condition}</span>
+      <a class="card-name" href="#/p/${p.id}">${p.name}</a>
+      <div class="card-meta">${meta}</div>
+      <div class="card-foot">
+        <div class="price">${cedi(p.price)}${p.old ? `<s>${cedi(p.old)}</s>` : ""}</div>
+        ${btn}
+      </div>
+    </div>
+  </article>`;
+}
+
+/* =====================================================================
+   SECTION: HOME VIEW (hero text, sections)
+   ===================================================================== */
+function viewHome() {
+  let fresh = PRODUCTS.filter(p => p.fresh).sort((a, b) => a.added - b.added);
+  if (!fresh.length) fresh = [...PRODUCTS].sort((a, b) => a.added - b.added).slice(0, 8);
+  const deals = PRODUCTS.filter(p => p.old);
+  const count = c => PRODUCTS.filter(p => p.cat === c).length;
+  const tiles = [
+    ["men", "#E2E2DF"], ["women", "#FFE9DA"], ["bags", "#EFEFED"], ["shoes", "#FFF3EA"], ["phones", ""]
+  ].map(([c, bg]) => `
+    <a class="cat ${c === "phones" ? "wide" : ""}" href="${c === "phones" ? "#/phones" : "#/shop?cat=" + c}" style="background:${bg}">
+      <div>${CAT_NAMES[c]}<small>${count(c)} items${c === "phones" ? " · tested & warrantied" : ""}</small></div>
+      <span class="arrow">→</span>${ICON[c]}
+    </a>`).join("");
+
+  // Hero collage: 3 newest non-phone items, preferring ones with real photos
+  const heroPool = PRODUCTS.filter(p => p.cat !== "phones").sort((a, b) => (b.images.length ? 1 : 0) - (a.images.length ? 1 : 0) || a.added - b.added);
+  const heroPicks = heroPool.slice(0, 3);
+
+  return `
+  <section class="hero">
+    <div class="hero-in">
+      <div>
+        <span class="eyebrow"><i></i> Fresh bales opened every week</span>
+        <h1>Look expensive.<br><em>Pay thrift.</em></h1>
+        <p>Quality fairly-used fashion, bags, shoes and tested phones, hand-picked and checked in ${CONFIG.city}.</p>
+        <div class="hero-cta">
+          <a class="btn btn-gold" href="#/shop">Shop the Kloset</a>
+          <a class="btn btn-ghost" href="#/phones">${ICON.phones} Phones</a>
+        </div>
+      </div>
+      ${heroPicks.length === 3 ? `<div class="collage" aria-hidden="true">
+        ${heroPicks.map(p => `<div class="tile">${pic(p)}<span class="tag">${cedi(p.price)}</span></div>`).join("")}
+      </div>` : ""}
+    </div>
+  </section>
+
+  <div class="trust">
+    <div class="wrap trust-in" style="padding-left:16px;padding-right:16px">
+      <div class="trust-item"><span>${ICON.eye}</span><div>Every item checked<small>Real photos, flaws noted</small></div></div>
+      <div class="trust-item"><span>${ICON.shield}</span><div>Phones tested<small>IMEI checked + warranty</small></div></div>
+      <div class="trust-item"><span>${ICON.truck}</span><div>Accra & nationwide<small>Rider or bus courier</small></div></div>
+      <div class="trust-item"><span>${ICON.chat}</span><div>Order on WhatsApp<small>Real person replies</small></div></div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section class="sec">
+      <div class="sec-h"><div><h2>Shop by category</h2></div></div>
+      <div class="cats">${tiles}</div>
+    </section>
+
+    <section class="sec" style="padding-top:6px">
+      <div class="sec-h">
+        <div><h2>🔥 Fresh Bales</h2><p>Just unpacked. One-of-a-kind pieces go fast.</p></div>
+        <a href="#/shop?sort=new">See all →</a>
+      </div>
+      ${fresh.length ? `<div class="row">${fresh.map(card).join("")}</div>`
+        : `<div class="empty"><h3>New stock coming soon</h3><p>We're unpacking fresh bales. Follow us on Instagram or message us on WhatsApp.</p></div>`}
+    </section>
+
+    ${deals.length ? `<section class="sec" style="padding-top:6px">
+      <div class="sec-h">
+        <div><h2>Hot Deals</h2><p>Price drops on quality pieces.</p></div>
+        <a href="#/shop">Shop all →</a>
+      </div>
+      <div class="grid">${deals.map(card).join("")}</div>
+    </section>` : ""}
+
+    <section class="sec">
+      <div class="sec-h"><div><h2>How ordering works</h2></div></div>
+      <div class="steps">
+        <div class="step"><b>1</b><div><h3>Add to cart</h3><p>Pick your items. Sizes and condition are shown clearly on every piece.</p></div></div>
+        <div class="step"><b>2</b><div><h3>Send on WhatsApp</h3><p>Your order is written for you. We confirm it's still available within minutes.</p></div></div>
+        <div class="step"><b>3</b><div><h3>Pay & receive</h3><p>Pay with MoMo or Telecel Cash, or pick up in store. Delivery in Accra and nationwide.</p></div></div>
+      </div>
+    </section>
+
+    <section class="sec" style="padding-top:0">
+      <div class="band">
+        <div><h2>New stock drops on Instagram & TikTok first</h2><p>Follow to see bales opened live and grab pieces before they hit the site.</p></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn btn-gold" href="${CONFIG.instagram}" target="_blank" rel="noopener">Instagram</a>
+          <a class="btn btn-ghost" href="${CONFIG.tiktok}" target="_blank" rel="noopener">TikTok</a>
+        </div>
+      </div>
+    </section>
+  </div>`;
+}
+
+/* =====================================================================
+   SECTION: SHOP VIEW (fashion grid + phones grid, filters, sort)
+   ===================================================================== */
+const PRICE_RANGES = {
+  fashion: [["0-100","Under GH₵100"],["100-200","GH₵100–200"],["200-400","GH₵200–400"],["400-","GH₵400+"]],
+  phones:  [["0-2500","Under GH₵2,500"],["2500-4000","GH₵2,500–4,000"],["4000-6000","GH₵4,000–6,000"],["6000-","GH₵6,000+"]]
+};
+
+function viewShop(mode, cat, sortParam) {
+  // Reset filters when switching between fashion & phones; reset size when category changes
+  if (state.mode !== mode) state.f = freshFilters();
+  else if (state.cat !== cat) state.f.size = "";
+  if (sortParam) state.f.sort = sortParam;
+  state.mode = mode; state.cat = cat;
+
+  state.base = mode === "phones"
+    ? PRODUCTS.filter(p => p.cat === "phones")
+    : PRODUCTS.filter(p => p.cat !== "phones" && (cat === "all" || p.cat === cat));
+
+  const f = state.f;
+  const chip = (key, val, label, on) => `<button class="chip ${on ? "on" : ""}" data-f="${key}" data-v="${val}">${label}</button>`;
+  const priceChips = PRICE_RANGES[mode].map(([v, l]) => chip("price", v, l, f.price === v)).join("");
+
+  let groups;
+  if (mode === "phones") {
+    const brands = [...new Set(state.base.map(p => p.brand))];
+    const stor = [...new Set(state.base.map(p => p.storage))].sort((a, b) => parseInt(a) - parseInt(b));
+    groups = `
+      <div class="fgroup"><h4>Condition</h4><div class="chips">${["New","UK Used","Refurbished"].map(c => chip("cond", c, c, f.cond.includes(c))).join("")}</div></div>
+      <div class="fgroup"><h4>Brand</h4><div class="chips">${brands.map(b => chip("brand", b, b, f.brand === b)).join("")}</div></div>
+      <div class="fgroup"><h4>Storage</h4><div class="chips">${stor.map(s => chip("storage", s, s, f.storage === s)).join("")}</div></div>
+      <div class="fgroup"><h4>Price</h4><div class="chips">${priceChips}</div></div>`;
+  } else {
+    const sizes = [...new Set(state.base.flatMap(sizesOf))];
+    groups = `
+      <div class="fgroup"><h4>Size</h4>
+        <select id="fsize" aria-label="Size"><option value="">All sizes</option>${sizes.map(s => `<option ${f.size === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+      <div class="fgroup"><h4>Price</h4><div class="chips">${priceChips}</div></div>
+      <div class="fgroup"><h4>Condition</h4><div class="chips">${["New","Like New","Very Good","Good"].map(c => chip("cond", c, c, f.cond.includes(c))).join("")}</div></div>`;
+  }
+
+  const catChips = mode === "phones" ? "" : `
+    <div class="chips scroll" role="tablist">
+      ${["all","men","women","bags","shoes"].map(c => `<a class="chip ${cat === c ? "on" : ""}" href="#/shop${c === "all" ? "" : "?cat=" + c}">${CAT_NAMES[c]}</a>`).join("")}
+      <a class="chip" href="#/phones">Phones →</a>
+    </div>`;
+
+  const title = mode === "phones" ? "Phones" : (cat === "all" ? "Shop the Kloset" : CAT_NAMES[cat]);
+  const sub = mode === "phones"
+    ? "New, UK Used & Refurbished. Every phone tested, IMEI-checked and covered by our shop warranty."
+    : "One-of-a-kind thrift pieces plus a few new essentials. When it's gone, it's gone.";
+
+  return `
+  <div class="wrap">
+    <div class="shop-head">
+      <h1 class="page">${title}</h1>
+      <p style="color:var(--muted);font-size:.92rem;margin-top:4px">${sub}</p>
+      <label class="search"><span class="sr">Search</span>${ICON.search}
+        <input id="fq" type="search" placeholder="${mode === "phones" ? "Search iPhone, Samsung…" : "Search jeans, dress, Nike…"}" value="${f.q}"></label>
+      ${catChips}
+    </div>
+    <div class="shop-layout">
+      <aside class="fpanel" id="fpanel" aria-label="Filters">
+        <div class="fpanel-h"><h3>Filters</h3><button class="close-x" data-close-filters aria-label="Close">×</button></div>
+        <div class="fpanel-b">${groups}</div>
+        <div class="fpanel-f">
+          <button class="btn btn-line" data-clear style="flex:1">Clear</button>
+          <button class="btn btn-green" data-close-filters style="flex:2" id="showBtn">Show items</button>
+        </div>
+      </aside>
+      <div>
+        <div class="toolbar">
+          <button class="fbtn" data-open-filters>${ICON.filter} Filters <em id="fcount"></em></button>
+          <select id="fsort" aria-label="Sort">
+            <option value="new" ${f.sort === "new" ? "selected" : ""}>Newest first</option>
+            <option value="low" ${f.sort === "low" ? "selected" : ""}>Price: low to high</option>
+            <option value="high" ${f.sort === "high" ? "selected" : ""}>Price: high to low</option>
+          </select>
+        </div>
+        <p class="rcount" id="rcount"></p>
+        <div class="grid" id="grid"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function applyFilters(list) {
+  const f = state.f, q = f.q.trim().toLowerCase();
+  const out = list.filter(p => {
+    if (q && !`${p.name} ${p.desc} ${p.brand || ""} ${p.colour || ""}`.toLowerCase().includes(q)) return false;
+    if (f.size && !sizesOf(p).includes(f.size)) return false;
+    if (f.price) { const [a, b] = f.price.split("-").map(Number); if (p.price < a || (b && p.price > b)) return false; }
+    if (f.cond.length && !f.cond.includes(p.condition)) return false;
+    if (f.brand && p.brand !== f.brand) return false;
+    if (f.storage && p.storage !== f.storage) return false;
+    return true;
+  });
+  const sorts = { new: (a, b) => a.added - b.added, low: (a, b) => a.price - b.price, high: (a, b) => b.price - a.price };
+  return out.sort(sorts[f.sort]);
+}
+
+function updateResults() {
+  const list = applyFilters(state.base);
+  const f = state.f;
+  const active = (f.size ? 1 : 0) + (f.price ? 1 : 0) + f.cond.length + (f.brand ? 1 : 0) + (f.storage ? 1 : 0);
+  $("#grid").innerHTML = list.length ? list.map(card).join("") :
+    `<div class="empty"><h3>Nothing matches… yet</h3><p>New bales land every week. Try fewer filters, or tell us what you're looking for and we'll keep it for you.</p>
+     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn btn-line" data-clear>Clear filters</button>
+     <a class="btn btn-wa" href="${waLink("Hi Riy@ Kloset! I'm looking for: ")}" target="_blank" rel="noopener">${ICON.wa} Request an item</a></div></div>`;
+  $("#rcount").textContent = `${list.length} item${list.length === 1 ? "" : "s"}`;
+  $("#fcount").textContent = active || "";
+  $("#fcount").style.display = active ? "" : "none";
+  $("#showBtn").textContent = `Show ${list.length} item${list.length === 1 ? "" : "s"}`;
+}
+
+function toggleFilters(open) {
+  $("#fpanel")?.classList.toggle("open", open);
+  $("#overlay").classList.toggle("open", open);
+}
+
+/* =====================================================================
+   SECTION: PRODUCT DETAIL VIEW (clothing + phones)
+   ===================================================================== */
+function viewProduct(id) {
+  const p = byId(id);
+  if (!p) return `<div class="wrap"><div class="empty" style="margin:30px 0"><h3>This item has been sold</h3><p>Thrift moves fast! Check out what's new.</p><a class="btn btn-green" href="#/shop">Back to shop</a></div></div>`;
+  const isPhone = p.cat === "phones";
+  const sizes = sizesOf(p);
+  state.selSize = sizes.length === 1 ? sizes[0] : null;
+  const slots = p.images.length ? Math.min(p.images.length, 6) : (isPhone ? 3 : 4);
+
+  const stock = p.stock === 1
+    ? `<div class="stock"><i></i>Only 1 left. One-of-a-kind piece</div>`
+    : p.stock <= 3 ? `<div class="stock"><i></i>Only ${p.stock} left in stock</div>`
+    : `<div class="stock ok"><i></i>In stock</div>`;
+
+  const sizeBlock = isPhone ? "" : sizes.length > 1
+    ? `<div class="box"><h3>Choose size</h3><div class="chips" id="sizeChips">${sizes.map(s => `<button class="chip" data-size="${s}">${s}</button>`).join("")}</div></div>`
+    : `<div class="box"><h3>Size</h3><p><b style="font-size:1.1rem">${p.size}</b>${p.measure ? ` <span style="color:var(--muted)">· ${p.measure}</span>` : ""}</p></div>`;
+
+  const phoneSpecs = !isPhone ? "" : `
+    <div class="box"><h3>Specifications</h3>
+      <dl class="kv">
+        <dt>Model</dt><dd>${p.name}</dd>
+        <dt>Storage</dt><dd>${p.storage}</dd>
+        <dt>RAM</dt><dd>${p.ram}</dd>
+        <dt>Colour</dt><dd>${p.colour}</dd>
+        <dt>Condition</dt><dd><span class="cond" data-c="${p.condition}">${p.condition}</span></dd>
+        <dt>Battery health</dt><dd><div class="battery"><div class="bar"><span style="width:${p.battery}%;background:${p.battery >= 85 ? "#2E9E5B" : "#C98A00"}"></span></div>${p.battery}%</div></dd>
+        <dt>In the box</dt><dd>${p.box}</dd>
+      </dl>
+    </div>
+    <div class="warranty">${ICON.shield}<div><b>Warranty & returns</b><p>${PHONE_WARRANTY[p.condition]}</p></div></div>`;
+
+  const related = PRODUCTS.filter(x => x.cat === p.cat && x.id !== p.id).slice(0, 4);
+  const askText = `Hi Riy@ Kloset! Is this still available?\n\n${plain(p.name)}${p.size ? ` (Size ${plain(p.size)})` : ""} – ${cedi(p.price)}\nRef: ${String(p.id).slice(0, 6).toUpperCase()}`;
+
+  return `
+  <div class="wrap">
+    <div class="crumb"><a href="#/">Home</a> / <a href="${isPhone ? "#/phones" : "#/shop?cat=" + p.cat}">${CAT_NAMES[p.cat]}</a> / ${p.name}</div>
+    <div class="pd">
+      <div>
+        <div class="gallery-main" id="gmain">${pic(p, 0)}${badges(p)}</div>
+        <div class="thumbs" style="grid-template-columns:repeat(${Math.min(Math.max(slots, 4), 6)},1fr);${slots < 2 ? "display:none" : ""}">
+          ${Array.from({ length: slots }, (_, i) => `<button class="${i === 0 ? "on" : ""}" data-thumb="${i}" aria-label="Photo ${i + 1}">${pic(p, i)}</button>`).join("")}
+        </div>
+      </div>
+      <div>
+        <span class="cond" data-c="${p.condition}">${p.condition}</span>
+        <h1>${p.name}</h1>
+        <div class="big-price">${cedi(p.price)}${p.old ? `<s>${cedi(p.old)}</s><span class="save">Save ${cedi(p.old - p.price)}</span>` : ""}</div>
+        ${stock}
+        ${sizeBlock}
+        ${phoneSpecs}
+        <div class="box"><h3>Description</h3><p>${p.desc}</p></div>
+        <div class="box"><h3>Condition: ${p.condition}</h3><p style="color:var(--muted)">${COND_INFO[p.condition]}</p></div>
+        <div class="actions">
+          <button class="btn btn-green btn-block" data-add-detail="${p.id}">${inCart(p.id) ? ICON.check + " In your cart · View cart" : ICON.plus + " Add to cart"}</button>
+          <a class="btn btn-wa btn-block" href="${waLink(askText)}" target="_blank" rel="noopener">${ICON.wa} Ask about this item</a>
+        </div>
+        <div class="mini-trust">
+          <div>${ICON.eye} ${isPhone ? "Tested: calls, cameras, charging, Face ID / fingerprint" : "Inspected, cleaned & photographed by us"}</div>
+          <div>${ICON.truck} ${CONFIG.delivery.filter(d => d.fee).map(d => `${d.label} ${cedi(d.fee)}`).join(" · ")}</div>
+          <div>${ICON.shield} ${isPhone ? "IMEI checked, not blacklisted" : "Not as described? Tell us within 48 hours"}</div>
+        </div>
+      </div>
+    </div>
+    ${related.length ? `<section class="sec" style="padding-top:0"><div class="sec-h"><div><h2>You may also like</h2></div></div><div class="grid">${related.map(card).join("")}</div></section>` : ""}
+  </div>`;
+}
+
+/* =====================================================================
+   SECTION: CART + CHECKOUT VIEW
+   Order is sent on WhatsApp. Mobile Money is paid manually after she
+   confirms availability (no payment gateway yet).
+   ===================================================================== */
+function cartLines() { return state.cart.map(i => ({ ...i, p: byId(i.id) })).filter(i => i.p); }
+function subtotal() { return cartLines().reduce((s, i) => s + i.p.price * i.qty, 0); }
+function deliveryOpt() { return CONFIG.delivery.find(d => d.id === state.checkout.delivery) || CONFIG.delivery[0]; }
+
+/* ---------- Pickup booking: day + time slots built from opening hours ---------- */
+const SLOT_MINUTES = 30;          // gap between pickup times
+const MIN_NOTICE_MINUTES = 60;    // earliest pickup = now + 1 hour (time to pack)
+const BOOK_DAYS_AHEAD = 10;       // how far ahead customers can book
+function parseHours(str) {        // "9:00am – 7:00pm" → [540, 1140]  (minutes from midnight)
+  const m = [...plain(String(str)).matchAll(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/gi)];
+  if (m.length < 2) return null;
+  const toMin = x => ((+x[1] % 12) + (x[3].toLowerCase() === "pm" ? 12 : 0)) * 60 + (+x[2] || 0);
+  const a = toMin(m[0]), b = toMin(m[1]);
+  return b > a ? [a, b] : null;
+}
+const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const fmtTime = min => { const h = Math.floor(min / 60), m = min % 60; return `${h % 12 || 12}:${String(m).padStart(2, "0")}${h < 12 ? "am" : "pm"}`; };
+function pickupSlots(date) {
+  const range = parseHours((CONFIG.hours[(date.getDay() + 6) % 7] || [])[1]);
+  if (!range) return [];
+  const now = new Date(), isToday = isoDate(date) === isoDate(now);
+  const earliest = isToday ? now.getHours() * 60 + now.getMinutes() + MIN_NOTICE_MINUTES : 0;
+  const out = [];
+  for (let t = range[0]; t <= range[1] - SLOT_MINUTES; t += SLOT_MINUTES) if (t >= earliest) out.push(t);
+  return out;
+}
+function pickupDays() {
+  const days = [], d0 = new Date();
+  for (let i = 0; i < BOOK_DAYS_AHEAD; i++) {
+    const d = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + i);
+    if (!pickupSlots(d).length) continue;
+    const label = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    days.push({ value: isoDate(d), date: d, label: i === 0 ? `Today, ${label}` : i === 1 ? `Tomorrow, ${label}` : label });
+  }
+  return days;
+}
+function pickupBlock(c) {
+  const days = pickupDays();
+  if (!days.length) return `<p class="hint" style="color:var(--red);font-weight:700;margin-top:8px">No pickup times available right now. Please message us on WhatsApp.</p>`;
+  if (!days.some(d => d.value === c.pickupDate)) { c.pickupDate = days[0].value; c.pickupTime = ""; }
+  const day = days.find(d => d.value === c.pickupDate);
+  const slots = pickupSlots(day.date);
+  if (!slots.map(fmtTime).includes(c.pickupTime)) c.pickupTime = "";
+  return `
+    <div class="hlabel">When will you collect?</div>
+    <div class="prow">
+      <label class="field"><span>Day</span><select id="pday">${days.map(d => `<option value="${d.value}" ${d.value === c.pickupDate ? "selected" : ""}>${d.label}</option>`).join("")}</select></label>
+      <label class="field"><span>Time</span><select id="ptime"><option value="">Choose…</option>${slots.map(t => `<option ${fmtTime(t) === c.pickupTime ? "selected" : ""}>${fmtTime(t)}</option>`).join("")}</select></label>
+    </div>
+    <span class="hint">We'll have your items packed and ready, no need to call ahead.</span>`;
+}
+function pickupLabel(c) {
+  const d = new Date(c.pickupDate + "T12:00:00");
+  return `${d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} at ${c.pickupTime}`;
+}
+function pickupISO(c) {           // Ghana is on GMT all year, so local shop time = UTC
+  const m = c.pickupTime.match(/(\d+):(\d+)(am|pm)/);
+  const h = (+m[1] % 12) + (m[3] === "pm" ? 12 : 0);
+  return `${c.pickupDate}T${String(h).padStart(2, "0")}:${m[2]}:00Z`;
+}
+
+function viewCart() {
+  // Drop cart items that have since sold out / been removed
+  const before = state.cart.length;
+  state.cart = state.cart.filter(i => byId(i.id));
+  if (state.cart.length !== before) { saveCart(); setTimeout(() => toast("Some items in your cart have just sold out"), 50); }
+
+  const lines = cartLines();
+  if (!lines.length) return `
+    <div class="wrap"><div class="empty" style="margin:30px 0">
+      <div style="font-size:2.4rem">🛍️</div><h3>Your cart is empty</h3>
+      <p>Fresh bales just landed. Find something one-of-a-kind before someone else does.</p>
+      <a class="btn btn-green" href="#/shop">Start shopping</a>
+    </div></div>`;
+
+  const c = state.checkout, d = deliveryOpt(), sub = subtotal(), total = sub + d.fee;
+  if (c.delivery === "nation" && c.pay === "cash") c.pay = "momo";   // no cash on delivery for bus courier
+
+  const items = lines.map((i, idx) => `
+    <div class="citem">
+      <a class="thumb" href="#/p/${i.p.id}">${pic(i.p)}</a>
+      <div>
+        <h3>${i.p.name}</h3>
+        <div class="meta">${i.p.cat === "phones" ? `${i.p.storage} · ${i.p.colour}` : `Size ${i.size}`} · ${i.p.condition}</div>
+        <div class="price">${cedi(i.p.price * i.qty)}</div>
+        ${i.p.stock > 1
+          ? `<div class="qty"><button data-qty="${idx}" data-d="-1" aria-label="Less">−</button><span>${i.qty}</span><button data-qty="${idx}" data-d="1" aria-label="More">+</button></div>`
+          : `<div class="one">One-of-a-kind · order soon</div>`}
+      </div>
+      <button class="rm" data-remove="${idx}" aria-label="Remove">${ICON.trash}</button>
+    </div>`).join("");
+
+  const delOpts = CONFIG.delivery.map(o => `
+    <label class="opt ${c.delivery === o.id ? "on" : ""}"><input type="radio" name="del" value="${o.id}" ${c.delivery === o.id ? "checked" : ""}>
+      <div><b>${o.label}</b><small>${o.note}</small></div><span class="fee">${o.fee ? cedi(o.fee) : "Free"}</span></label>`).join("");
+
+  const cashOpt = c.delivery === "nation" ? "" : `
+    <label class="opt ${c.pay === "cash" ? "on" : ""}"><input type="radio" name="pay" value="cash" ${c.pay === "cash" ? "checked" : ""}>
+      <div><b>${c.delivery === "pickup" ? "Cash in store" : "Cash on delivery"}</b><small>${c.delivery === "pickup" ? "Pay when you collect" : "Pay the rider when it arrives"}</small></div></label>`;
+
+  const momoNote = c.pay !== "momo" ? "" : `
+    <div class="warranty" style="margin-top:12px">${ICON.shield}<div><b>How Mobile Money works</b>
+      <p>Send your order first. Once we confirm your items are available, pay
+      ${CONFIG.momoNumber ? `to <b>${CONFIG.momoNumber}</b>${CONFIG.momoName ? ` (${CONFIG.momoName})` : ""}` : "to the MoMo number we send you"}.
+      Please only pay after we confirm.</p></div></div>`;
+
+  return `
+  <div class="wrap">
+    <div class="cart-layout">
+      <div>
+        <h1 class="page" style="margin-bottom:12px">Your cart <span style="color:var(--muted);font-weight:600;font-size:1rem">(${lines.length})</span></h1>
+        <div style="display:grid;gap:10px">${items}</div>
+        <a href="#/shop" style="display:inline-block;margin-top:14px;font-weight:800;color:var(--green);padding:8px 0">← Keep shopping</a>
+      </div>
+      <div class="summary">
+        <h2>Checkout</h2>
+        <p style="color:var(--muted);font-size:.85rem">We'll confirm availability on WhatsApp before you pay.</p>
+
+        <div class="hlabel">Delivery</div>
+        ${delOpts}
+        ${c.delivery === "pickup" ? pickupBlock(c) : ""}
+
+        <div class="hlabel">Your details</div>
+        <label class="field"><span>Name</span><input id="cname" autocomplete="name" placeholder="e.g. Ama Mensah" value="${esc(c.name)}"></label>
+        <label class="field"><span>Phone number</span><input id="cphone" type="tel" inputmode="tel" autocomplete="tel" placeholder="024 000 0000" value="${esc(c.phone)}"></label>
+        ${c.delivery === "pickup" ? "" : `<label class="field"><span>${c.delivery === "nation" ? "Town & bus station to collect from" : "Area & landmark"}</span><input id="carea" placeholder="${c.delivery === "nation" ? "e.g. Kumasi, VIP station Asafo" : "e.g. East Legon, near A&C Mall"}" value="${esc(c.area)}"></label>`}
+
+        <div class="hlabel">Payment</div>
+        <label class="opt ${c.pay === "momo" ? "on" : ""}"><input type="radio" name="pay" value="momo" ${c.pay === "momo" ? "checked" : ""}>
+          <div><b>Mobile Money</b><small>MTN MoMo · Telecel Cash</small></div></label>
+        ${cashOpt}
+        ${momoNote}
+
+        <div class="totals">
+          <div><span>Subtotal</span><b>${cedi(sub)}</b></div>
+          <div><span>${d.label}</span><b>${d.fee ? cedi(d.fee) : "Free"}</b></div>
+          <div class="grand"><span>Total</span><span>${cedi(total)}</span></div>
+        </div>
+        ${hasBackend() && !session
+          ? `<a class="btn btn-green btn-block" href="#/account?next=cart" style="margin-top:16px">${ICON.lock} Sign in to place your order</a>
+             <p class="secure" style="margin-top:8px">New here? <a href="#/account?mode=signup&next=cart" style="color:var(--green);font-weight:800;margin-left:4px">Create an account, it takes 30 seconds</a></p>`
+          : `<a class="btn btn-wa btn-block" data-wa-order href="${waLink("")}" target="_blank" rel="noopener" style="margin-top:16px">${ICON.wa} Send order on WhatsApp</a>`}
+        <div class="secure">${ICON.lock} Your details are only used to deliver your order</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* Saves a copy of the order so it shows in admin → Orders (pickup schedule).
+   Fire-and-forget: the WhatsApp message is still the main channel. */
+function recordOrder(ref) {
+  if (!sb) return;
+  const c = state.checkout, d = deliveryOpt();
+  const items = cartLines().map(i => ({ id: String(i.p.id), name: plain(i.p.name), size: plain(i.size || i.p.storage || ""), qty: i.qty, price: i.p.price }));
+  sb.from("orders").insert({
+    ref, user_id: session ? session.user.id : null,
+    customer_name: c.name.trim().slice(0, 80), phone: c.phone.trim().slice(0, 20),
+    area: c.delivery === "pickup" ? "" : c.area.trim().slice(0, 120),
+    delivery: c.delivery, pickup_at: c.delivery === "pickup" ? pickupISO(c) : null,
+    items, total: subtotal() + d.fee, payment: c.pay
+  }).then(({ error }) => { if (error) console.warn("Order not recorded", error); else myOrders = null; });
+  // Remember details on the customer's profile for next time
+  if (session && profile) {
+    const upd = {};
+    if (!profile.full_name && c.name.trim()) upd.full_name = c.name.trim().slice(0, 80);
+    if (!profile.phone && c.phone.trim()) upd.phone = c.phone.trim().slice(0, 20);
+    if (!profile.area && c.area.trim() && c.delivery !== "pickup") upd.area = c.area.trim().slice(0, 120);
+    if (Object.keys(upd).length) sb.from("profiles").update(upd).eq("id", session.user.id).then(() => Object.assign(profile, upd));
+  }
+}
+
+/* Builds the pre-filled WhatsApp order message */
+function checkoutProblem() {
+  const c = state.checkout;
+  if (!c.name.trim()) return ["Please enter your name", "#cname"];
+  if (c.phone.replace(/\D/g, "").length < 9) return ["Please enter a valid phone number", "#cphone"];
+  if (c.delivery !== "pickup" && !c.area.trim()) return ["Please enter your area / landmark", "#carea"];
+  if (c.delivery === "pickup" && (!c.pickupDate || !c.pickupTime)) return ["Please choose a pickup day and time", "#ptime"];
+  return null;
+}
+function buildOrderMessage(ref) {
+  const c = state.checkout, d = deliveryOpt(), sub = subtotal();
+  const lines = cartLines().map((i, n) => {
+    const detail = i.p.cat === "phones" ? `${i.p.storage}, ${i.p.colour}, ${i.p.condition}` : `Size ${i.size}, ${i.p.condition}`;
+    return `${n + 1}. ${plain(i.p.name)} (${plain(detail)})${i.qty > 1 ? ` x${i.qty}` : ""} – ${cedi(i.p.price * i.qty)}`;
+  });
+  const pay = c.pay === "momo" ? "Mobile Money (after confirmation)" : (c.delivery === "pickup" ? "Cash in store" : "Cash on delivery");
+  return [
+    `Hello Riy@ Kloset! 👋 I'd like to order:`, ``,
+    ...lines, ``,
+    `Subtotal: ${cedi(sub)}`,
+    `Delivery: ${plain(d.label)} (${d.fee ? cedi(d.fee) : "Free"})`,
+    ...(c.delivery === "pickup" ? [`*Pickup: ${pickupLabel(c)}*`] : []),
+    `*TOTAL: ${cedi(sub + d.fee)}*`, ``,
+    `Name: ${c.name || "-"}`,
+    `Phone: ${c.phone || "-"}`,
+    ...(c.delivery === "pickup" ? [] : [`Location: ${c.area || "-"}`]),
+    `Payment: ${pay}`,
+    `Order ref: ${ref}`, ``,
+    `Please confirm availability. Thank you!`
+  ].join("\n");
+}
+
+/* =====================================================================
+   SECTION: CUSTOMER ACCOUNTS (sign up, sign in, profile, orders, delete)
+   Customers can browse freely; signing in is needed to place an order.
+   ===================================================================== */
+let session = null, profile = null, myOrders = null;
+
+async function initAuth() {
+  if (!hasBackend()) return;
+  const c = window.RK_CONFIG;
+  sb = sb || window.supabase.createClient(c.supabaseUrl, c.supabaseAnonKey);
+  sb.auth.onAuthStateChange((event, sess) => {
+    session = sess;
+    updateAccountIcon();
+    if (event === "PASSWORD_RECOVERY") { location.hash = "#/account?reset=1"; return; }
+    if (event === "SIGNED_OUT") { profile = null; myOrders = null; }
+    if (event === "SIGNED_IN") {
+      // Don't call Supabase inside this callback (can deadlock); run right after
+      setTimeout(async () => {
+        await loadProfile();
+        if (/access_token=/.test(location.hash)) location.hash = "#/account";   // arrived from email confirmation
+      }, 0);
+    }
+  });
+  const { data } = await sb.auth.getSession();
+  session = data.session;
+  if (session) await loadProfile();
+  updateAccountIcon();
+}
+async function loadProfile() {
+  if (!session) return;
+  const { data } = await sb.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
+  profile = data || { full_name: "", phone: "", area: "" };
+  const c = state.checkout;           // pre-fill checkout
+  c.name = c.name || profile.full_name || "";
+  c.phone = c.phone || profile.phone || "";
+  c.area = c.area || profile.area || "";
+}
+function updateAccountIcon() {
+  const b = $("#acctBtn"); if (!b) return;
+  if (session) {
+    const n = (profile && profile.full_name) || session.user.email || "?";
+    b.innerHTML = `<span class="initial">${esc(n.trim()[0].toUpperCase())}</span>`;
+  } else {
+    b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:24px;height:24px"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
+  }
+}
+function authError(e) {
+  const m = (e && e.message) || String(e);
+  if (/Invalid login/i.test(m)) return "Wrong email or password.";
+  if (/Email not confirmed/i.test(m)) return "Please confirm your email first. Check your inbox (and spam).";
+  if (/already registered|already exists/i.test(m)) return "An account with this email already exists. Try signing in.";
+  if (/Password should be/i.test(m)) return "Password must be at least 8 characters.";
+  if (/rate limit/i.test(m)) return "Too many attempts. Please wait a few minutes and try again.";
+  if (/Failed to fetch|network/i.test(m)) return "No internet connection. Try again.";
+  return m;
+}
+
+function viewAccount(q) {
+  if (!hasBackend()) return `<div class="wrap acct"><div class="empty"><h3>Customer accounts</h3><p>Accounts switch on once the shop is connected to its database (demo mode).</p></div></div>`;
+  if (q.get("reset")) return `<div class="wrap acct"><form class="panel" id="resetForm">
+      <h2>Set a new password</h2>
+      <label class="field"><span>New password</span><input type="password" name="pw" minlength="8" autocomplete="new-password" required></label>
+      <button class="btn btn-green btn-block" style="margin-top:14px">Save new password</button></form></div>`;
+  if (!session) return viewAuth(q.get("mode") === "signup" ? "signup" : "signin", q.get("next") || "");
+  return viewProfile();
+}
+
+function viewAuth(mode, next) {
+  const nx = next ? `&next=${encodeURIComponent(next)}` : "";
+  return `<div class="wrap acct">
+    <h1 class="page">${mode === "signup" ? "Create your account" : "Welcome back"}</h1>
+    <p style="color:var(--muted);margin-top:4px">${next === "cart" ? "Sign in to send your order. Your cart is saved." : "Track your orders and check out faster."}</p>
+    <div class="atabs">
+      <a href="#/account?mode=signin${nx}" class="${mode === "signin" ? "on" : ""}">Sign in</a>
+      <a href="#/account?mode=signup${nx}" class="${mode === "signup" ? "on" : ""}">Create account</a>
+    </div>
+    ${mode === "signup" ? `
+    <form class="panel" id="signupForm" data-next="${esc(next)}">
+      <label class="field"><span>Full name</span><input name="full_name" autocomplete="name" required maxlength="80"></label>
+      <label class="field"><span>Phone number</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="024 000 0000" required maxlength="20"></label>
+      <label class="field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label>
+      <label class="field"><span>Password</span><input name="password" type="password" minlength="8" autocomplete="new-password" required><span class="hint">At least 8 characters</span></label>
+      <button class="btn btn-green btn-block" style="margin-top:16px">Create account</button>
+      <p class="hint" style="margin-top:10px">By creating an account you agree to our <a href="#/privacy" style="color:var(--green);font-weight:800">privacy notice</a>.</p>
+    </form>` : `
+    <form class="panel" id="signinForm" data-next="${esc(next)}">
+      <label class="field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label>
+      <label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="btn btn-green btn-block" style="margin-top:16px">Sign in</button>
+      <button type="button" class="linkbtn" id="forgotPw">Forgot password?</button>
+    </form>`}
+  </div>`;
+}
+
+function viewProfile() {
+  const p = profile || {}, email = session.user.email;
+  if (myOrders === null) loadMyOrders();
+  return `<div class="wrap acct">
+    <h1 class="page">Hi${p.full_name ? ", " + esc(p.full_name.split(" ")[0]) : ""} 👋</h1>
+    <p style="color:var(--muted);margin-top:4px">Signed in as ${esc(email)}</p>
+
+    <form class="panel" id="profForm">
+      <h2>Personal details</h2>
+      <label class="field"><span>Full name</span><input name="full_name" maxlength="80" autocomplete="name" value="${esc(p.full_name)}" required></label>
+      <label class="field"><span>Phone number</span><input name="phone" type="tel" inputmode="tel" maxlength="20" value="${esc(p.phone)}" required></label>
+      <label class="field"><span>Delivery area & landmark (optional)</span><input name="area" maxlength="120" value="${esc(p.area)}" placeholder="e.g. East Legon, near A&C Mall"></label>
+      <button class="btn btn-green btn-block" style="margin-top:14px">Save details</button>
+    </form>
+
+    <div class="panel"><h2>My orders</h2><div id="myOrders">${myOrdersHtml()}</div></div>
+
+    <div class="panel">
+      <h2>Login & security</h2>
+      <form id="emailForm"><label class="field"><span>Change email</span><input name="email" type="email" value="${esc(email)}" required></label>
+        <button class="btn btn-line btn-block" style="margin-top:10px">Update email</button></form>
+      <form id="pwForm" style="margin-top:14px"><label class="field"><span>New password</span><input name="pw" type="password" minlength="8" autocomplete="new-password" required></label>
+        <button class="btn btn-line btn-block" style="margin-top:10px">Change password</button></form>
+      <button class="btn btn-line btn-block" id="signOut" style="margin-top:14px">Sign out</button>
+    </div>
+
+    <form class="panel danger" id="deleteForm">
+      <h2>Delete account</h2>
+      <p style="color:var(--muted);font-size:.9rem;margin-top:4px">This permanently deletes your login and personal details. Past orders are kept for the shop's records with your name and phone removed. This can't be undone.</p>
+      <label class="field"><span>Type DELETE to confirm</span><input name="confirm" autocomplete="off" placeholder="DELETE"></label>
+      <button class="btn btn-red btn-block" style="margin-top:12px">Delete my account</button>
+    </form>
+  </div>`;
+}
+
+async function loadMyOrders() {
+  myOrders = "loading";
+  const { data, error } = await sb.from("orders").select("*").order("created_at", { ascending: false }).limit(50);
+  myOrders = error ? [] : data;
+  const box = $("#myOrders"); if (box) box.innerHTML = myOrdersHtml();
+}
+function myOrdersHtml() {
+  if (myOrders === null || myOrders === "loading") return `<div class="spinner" style="width:30px;height:30px;border-width:4px;margin:10px 0"></div>`;
+  if (!myOrders.length) return `<p style="color:var(--muted);font-size:.9rem;margin-top:6px">No orders yet. <a href="#/shop" style="color:var(--green);font-weight:800">Start shopping →</a></p>`;
+  const ST = { new: "Sent", confirmed: "Confirmed", ready: "Ready", collected: "Completed", cancelled: "Cancelled" };
+  const fmt = d => new Date(d).toLocaleString("en-GB", { timeZone: "Africa/Accra", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true });
+  return myOrders.map(o => `<div class="morder">
+    <div class="mtop"><span>${esc(o.ref)} · ${cedi(o.total)}</span><span class="ostat">${ST[o.status] || esc(o.status)}</span></div>
+    <div style="color:var(--muted);margin-top:4px">${(o.items || []).map(i => esc(i.name) + (i.qty > 1 ? ` ×${i.qty}` : "")).join(", ")}</div>
+    <div style="margin-top:4px;font-size:.82rem">${o.delivery === "pickup" && o.pickup_at ? `Pickup: <b>${esc(fmt(o.pickup_at))}</b>` : `Ordered ${esc(fmt(o.created_at))}`}</div>
+  </div>`).join("");
+}
+
+/* Account form handling */
+document.addEventListener("submit", async e => {
+  const f = e.target, id = f.id;
+  if (!["signinForm", "signupForm", "profForm", "emailForm", "pwForm", "resetForm", "deleteForm"].includes(id)) return;
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(f).entries());
+  const btn = f.querySelector("button:not([type=button])"), label = btn.textContent;
+  const done = () => { btn.disabled = false; btn.textContent = label; };
+  btn.disabled = true; btn.textContent = "Please wait…";
+  const goNext = () => { location.hash = f.dataset.next === "cart" ? "#/cart" : "#/account"; };
+
+  if (id === "signinForm") {
+    const { error } = await sb.auth.signInWithPassword({ email: d.email.trim(), password: d.password });
+    done(); if (error) return toast(authError(error));
+    await loadProfile(); updateAccountIcon(); toast("Signed in ✓"); goNext(); render();
+  }
+  if (id === "signupForm") {
+    const { data, error } = await sb.auth.signUp({ email: d.email.trim(), password: d.password,
+      options: { data: { full_name: d.full_name.trim(), phone: d.phone.trim() }, emailRedirectTo: location.origin + location.pathname } });
+    done(); if (error) return toast(authError(error));
+    if (!data.session) {   // email confirmation is switched on in Supabase
+      app.innerHTML = `<div class="wrap acct"><div class="empty" style="margin-top:20px"><div style="font-size:2.4rem">📧</div><h3>Check your email</h3>
+        <p>We sent a confirmation link to <b>${esc(d.email)}</b>. Tap it, then come back and sign in. Your cart is saved.</p>
+        <a class="btn btn-green" href="#/account?mode=signin${f.dataset.next ? "&next=" + f.dataset.next : ""}">Go to sign in</a></div></div>`;
+      return;
+    }
+    session = data.session; await loadProfile(); updateAccountIcon(); toast("Account created ✓"); goNext(); render();
+  }
+  if (id === "profForm") {
+    const upd = { full_name: d.full_name.trim().slice(0, 80), phone: d.phone.trim().slice(0, 20), area: d.area.trim().slice(0, 120) };
+    const { error } = await sb.from("profiles").upsert({ id: session.user.id, ...upd });
+    done(); if (error) return toast(authError(error));
+    profile = { ...profile, ...upd };
+    Object.assign(state.checkout, { name: upd.full_name, phone: upd.phone, area: upd.area || state.checkout.area });
+    updateAccountIcon(); toast("Details saved ✓");
+  }
+  if (id === "emailForm") {
+    const { error } = await sb.auth.updateUser({ email: d.email.trim() }, { emailRedirectTo: location.origin + location.pathname });
+    done(); toast(error ? authError(error) : "Check your new email to confirm the change");
+  }
+  if (id === "pwForm" || id === "resetForm") {
+    const { error } = await sb.auth.updateUser({ password: d.pw });
+    done(); if (error) return toast(authError(error));
+    toast("Password updated ✓"); f.reset();
+    if (id === "resetForm") location.hash = "#/account";
+  }
+  if (id === "deleteForm") {
+    if (d.confirm.trim().toUpperCase() !== "DELETE") { done(); return toast("Type DELETE to confirm"); }
+    const { error } = await sb.rpc("delete_my_account");
+    if (error) { done(); return toast(authError(error)); }
+    await sb.auth.signOut().catch(() => {});
+    try { localStorage.removeItem("rk_cart"); } catch (_) {}
+    session = null; profile = null; myOrders = null; state.cart = []; saveCart();
+    state.checkout = { ...state.checkout, name: "", phone: "", area: "" };
+    updateAccountIcon(); location.hash = "#/"; toast("Your account has been deleted");
+  }
+});
+document.addEventListener("click", async e => {
+  if (e.target.id === "signOut") {
+    await sb.auth.signOut();
+    session = null; profile = null; myOrders = null;
+    state.checkout = { ...state.checkout, name: "", phone: "", area: "" };
+    updateAccountIcon(); location.hash = "#/"; toast("Signed out");
+  }
+  if (e.target.id === "forgotPw") {
+    const email = ($("#signinForm [name=email]") || {}).value || "";
+    if (!email.trim()) return toast("Type your email first, then tap Forgot password");
+    const { error } = await sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: location.origin + location.pathname });
+    toast(error ? authError(error) : "Check your email for a reset link");
+  }
+});
+
+/* =====================================================================
+   SECTION: PRIVACY NOTICE (edit to match how she actually handles data)
+   ===================================================================== */
+function viewPrivacy() {
+  return `<div class="wrap acct prose">
+    <h1 class="page">Privacy notice</h1>
+    <p style="margin-top:8px">Riy@ Kloset ("we") collects only what we need to sell and deliver your order.</p>
+    <h2>What we collect</h2>
+    <ul><li>Account details: your name, phone number, email and (optionally) delivery area.</li>
+      <li>Order details: items, prices, pickup time or delivery location, and payment method.</li></ul>
+    <h2>How we use it</h2>
+    <ul><li>To confirm, prepare and deliver your orders, and to contact you about them on WhatsApp or by phone.</li>
+      <li>We never sell your details. We share your name, phone and location with a delivery rider or courier only when you choose delivery.</li></ul>
+    <h2>Your choices</h2>
+    <ul><li>You can view and edit your details any time under <a href="#/account" style="color:var(--green);font-weight:800">My account</a>.</li>
+      <li>You can delete your account there. Your login and personal details are erased; past orders are kept without your name or phone for our records.</li></ul>
+    <h2>Contact</h2>
+    <p>Questions about your data? Message us on WhatsApp.</p>
+  </div>`;
+}
+
+/* =====================================================================
+   SECTION: ABOUT / VISIT US VIEW (story, hours, map, delivery)
+   ===================================================================== */
+function viewAbout() {
+  const today = (new Date().getDay() + 6) % 7; // Mon = 0
+  const mapUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("Riy@ Kloset " + plain(CONFIG.address));
+  return `
+  <div class="wrap">
+    <div class="about-hero">
+      <span class="eyebrow" style="margin-bottom:12px"><i></i> Our story</span>
+      <h1>Quality you can feel.<br><em>Prices you can smile at.</em></h1>
+      <p>Riy@ Kloset started with one simple idea: everyone in ${CONFIG.city} deserves to look good without overspending.
+      We open every bale ourselves and pick out only the best pieces. Then we clean, check and photograph each one honestly,
+      so what you see is exactly what you get. Our phones are sourced directly, tested one by one and backed by our own shop warranty.
+      <br><br>[Replace with Riya's own story: how she started, what she loves about thrift, a line in her own voice.]</p>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <h2>Visit the shop</h2>
+        <div class="map"><div class="pin">${ICON.pin}<span>Riy@ Kloset</span></div></div>
+        <p style="font-weight:800">${CONFIG.address}</p>
+        <p style="color:var(--muted);font-size:.9rem;margin:4px 0 6px">${CONFIG.landmark}</p>
+        ${CONFIG.phone ? `<p style="font-weight:800;margin-bottom:14px">📞 <a href="tel:${plain(CONFIG.phone).replace(/[^\d+]/g, "")}" style="color:var(--green)">${CONFIG.phone}</a> <span style="color:var(--muted);font-weight:600">(call or WhatsApp)</span></p>` : `<div style="height:8px"></div>`}
+        <div style="display:grid;gap:10px">
+          <a class="btn btn-green btn-block" href="${mapUrl}" target="_blank" rel="noopener">${ICON.pin} Open in Google Maps</a>
+          <a class="btn btn-wa btn-block" href="${waLink("Hi Riy@ Kloset! I'd like directions to the shop.")}" target="_blank" rel="noopener">${ICON.wa} Get directions on WhatsApp</a>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Opening hours</h2>
+        <table class="hours">${CONFIG.hours.map(([d, h], i) => `<tr class="${i === today ? "today" : ""}"><td>${d}${i === today ? " · Today" : ""}</td><td>${h}</td></tr>`).join("")}</table>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:12px">Public holidays: hours may change. Check our Instagram or send a WhatsApp.</p>
+      </div>
+    </div>
+
+    <div class="two" style="margin-top:16px">
+      <div class="panel">
+        <h2>Delivery</h2>
+        <div class="dl">${CONFIG.delivery.map(d => `<div><div><b>${d.label}</b><small>${d.note}</small></div><span class="fee">${d.fee ? cedi(d.fee) : "Free"}</span></div>`).join("")}</div>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:12px">Orders confirmed before 2pm go out the same day in Accra. Nationwide parcels are sent by bus courier and you collect at the station. We send your waybill number on WhatsApp.</p>
+      </div>
+      <div class="panel">
+        <h2>Condition guide</h2>
+        <div class="glist">${Object.entries(COND_INFO).map(([k, v]) => `<div><span class="cond" data-c="${k}">${k}</span><span>${v}</span></div>`).join("")}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* =====================================================================
+   SECTION: CART ACTIONS
+   ===================================================================== */
+function saveCart() {
+  store.set("rk_cart", state.cart);
+  const n = state.cart.reduce((s, i) => s + i.qty, 0);
+  document.querySelectorAll(".count").forEach(el => { el.textContent = n; el.dataset.n = n; });
+}
+function addToCart(id, size) {
+  const p = byId(id);
+  size = size || sizesOf(p)[0] || "";
+  const line = state.cart.find(i => i.id === id && i.size === size);
+  const already = state.cart.filter(i => i.id === id).reduce((s, i) => s + i.qty, 0);
+  if (already >= p.stock) { toast(p.stock === 1 ? "Already in your cart. It's the only one!" : "That's all we have in stock", `<a href="#/cart">View cart</a>`); return false; }
+  if (line) line.qty++; else state.cart.push({ id, size, qty: 1 });
+  saveCart();
+  toast(`Added: ${p.name}`, `<a href="#/cart">View cart →</a>`);
+  return true;
+}
+
+/* =====================================================================
+   SECTION: EVENTS (one delegated listener for everything)
+   ===================================================================== */
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, a, [data-f]");
+  if (!t) return;
+
+  // Add from product card
+  if (t.dataset.add) {
+    if (addToCart(t.dataset.add)) { t.classList.add("in"); t.innerHTML = ICON.check; }
+    return;
+  }
+  // Add from product page
+  if (t.dataset.addDetail) {
+    const p = byId(t.dataset.addDetail);
+    if (inCart(p.id) && sizesOf(p).length <= 1) { location.hash = "#/cart"; return; }
+    if (!state.selSize && sizesOf(p).length > 1) { toast("Please choose a size first"); return; }
+    if (addToCart(p.id, state.selSize)) t.innerHTML = ICON.check + " In your cart · View cart";
+    return;
+  }
+  // Size chooser
+  if (t.dataset.size) {
+    state.selSize = t.dataset.size;
+    document.querySelectorAll("#sizeChips .chip").forEach(c => c.classList.toggle("on", c === t));
+    return;
+  }
+  // Gallery thumbnails
+  if (t.dataset.thumb !== undefined) {
+    const p = byId(location.hash.split("/")[2]);
+    const g = $("#gmain");
+    g.innerHTML = pic(p, +t.dataset.thumb) + badges(p);
+    t.parentElement.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === t));
+    return;
+  }
+  // Filter chips
+  if (t.dataset.f) {
+    const k = t.dataset.f, v = t.dataset.v, f = state.f;
+    if (k === "cond") {
+      f.cond = f.cond.includes(v) ? f.cond.filter(x => x !== v) : [...f.cond, v];
+      t.classList.toggle("on");
+    } else {
+      f[k] = f[k] === v ? "" : v;
+      t.parentElement.querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c === t && f[k] === v));
+    }
+    updateResults();
+    return;
+  }
+  if (t.hasAttribute("data-open-filters")) { toggleFilters(true); return; }
+  if (t.hasAttribute("data-close-filters")) { toggleFilters(false); return; }
+  if (t.hasAttribute("data-clear")) {
+    const sort = state.f.sort; state.f = freshFilters(); state.f.sort = sort;
+    toggleFilters(false); render(); return;
+  }
+  // Cart quantity / remove
+  if (t.dataset.qty !== undefined) {
+    const line = state.cart[+t.dataset.qty], p = byId(line.id), next = line.qty + (+t.dataset.d);
+    if (next < 1) state.cart.splice(+t.dataset.qty, 1);
+    else if (next > p.stock) toast("That's all we have in stock");
+    else line.qty = next;
+    saveCart(); app.innerHTML = viewCart(); return;
+  }
+  if (t.dataset.remove !== undefined) { state.cart.splice(+t.dataset.remove, 1); saveCart(); app.innerHTML = viewCart(); return; }
+  // WhatsApp order: plain link, message filled in at click time
+  if (t.hasAttribute("data-wa-order")) {
+    const problem = checkoutProblem();
+    if (problem) { e.preventDefault(); toast(problem[0]); $(problem[1])?.focus(); return; }
+    const ref = "RK-" + Date.now().toString(36).toUpperCase().slice(-6);
+    t.href = waLink(buildOrderMessage(ref));
+    recordOrder(ref);
+    return;
+  }
+});
+
+$("#overlay").addEventListener("click", () => toggleFilters(false));
+
+// Text inputs & selects (search, sort, size, checkout fields)
+document.addEventListener("input", e => {
+  const el = e.target;
+  if (el.id === "fq") { state.f.q = el.value; updateResults(); }
+  if (el.id === "cname") state.checkout.name = el.value;
+  if (el.id === "carea") state.checkout.area = el.value;
+  if (el.id === "cphone") state.checkout.phone = el.value;
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.id === "fsort") { state.f.sort = el.value; updateResults(); }
+  if (el.id === "fsize") { state.f.size = el.value; updateResults(); }
+  if (el.name === "del") { state.checkout.delivery = el.value; app.innerHTML = viewCart(); }
+  if (el.name === "pay") { state.checkout.pay = el.value; app.innerHTML = viewCart(); }
+  if (el.id === "pday") { state.checkout.pickupDate = el.value; state.checkout.pickupTime = ""; app.innerHTML = viewCart(); }
+  if (el.id === "ptime") state.checkout.pickupTime = el.value;
+});
+
+/* =====================================================================
+   SECTION: ROUTER (hash-based: #/  #/shop?cat=men  #/phones  #/p/m1  #/cart  #/about)
+   ===================================================================== */
+function render(keepScroll) {
+  if (LOAD_ERROR) {
+    app.innerHTML = `<div class="wrap"><div class="empty" style="margin:30px 0"><h3>We couldn't load the shop</h3>
+      <p>Please check your internet connection and try again, or message us on WhatsApp.</p>
+      <button class="btn btn-green" onclick="location.reload()">Try again</button></div></div>`;
+    return;
+  }
+  const raw = location.hash.slice(1) || "/";
+  // Returning from an email link (confirm / reset): Supabase reads the tokens, auth handler then routes
+  if (/access_token=|type=recovery/.test(raw)) { app.innerHTML = `<div class="loading"><div class="spinner"></div></div>`; return; }
+  if (/^error/.test(raw)) {
+    const msg = new URLSearchParams(raw).get("error_description");
+    history.replaceState(null, "", location.pathname + "#/account");
+    toast(msg ? msg.replace(/\+/g, " ") : "That link has expired. Please try again.");
+    return render();
+  }
+  const [path, qs] = raw.split("?");
+  const parts = path.split("/").filter(Boolean);
+  const q = new URLSearchParams(qs || "");
+  let nav = "home";
+
+  switch (parts[0]) {
+    case "shop":   nav = "shop";   app.innerHTML = viewShop("fashion", q.get("cat") || "all", q.get("sort")); updateResults(); break;
+    case "phones": nav = "phones"; app.innerHTML = viewShop("phones", "phones"); updateResults(); break;
+    case "p":      { const p = byId(parts[1]); nav = p && p.cat === "phones" ? "phones" : "shop"; app.innerHTML = viewProduct(parts[1]); break; }
+    case "cart":   nav = "cart";   app.innerHTML = viewCart(); break;
+    case "about":  nav = "about";  app.innerHTML = viewAbout(); break;
+    case "account": nav = "account"; app.innerHTML = viewAccount(q); break;
+    case "privacy": nav = "about"; app.innerHTML = viewPrivacy(); break;
+    default:       app.innerHTML = viewHome();
+  }
+  document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("on", a.dataset.nav === nav));
+  toggleFilters(false);
+  if (!keepScroll) window.scrollTo(0, 0);
+}
+
+/* ---------- Init ---------- */
+function applyConfig() {
+  document.querySelectorAll(".wa-link").forEach(a => a.href = waLink("Hi Riy@ Kloset! 👋 I have a question."));
+  $("#ig").href = plain(CONFIG.instagram);
+  $("#tt").href = plain(CONFIG.tiktok);
+  document.querySelectorAll("[data-city]").forEach(el => el.innerHTML = CONFIG.city);
+  $("#yr").textContent = new Date().getFullYear();
+  const fp = $("#footPhone");
+  if (fp) { fp.innerHTML = CONFIG.phone || ""; fp.href = "tel:" + plain(CONFIG.phone || "").replace(/[^\d+]/g, ""); fp.parentElement.style.display = CONFIG.phone ? "" : "none"; }
+  if (DEMO && !$(".demo-bar")) app.insertAdjacentHTML("beforebegin", `<div class="demo-bar">Demo mode: showing sample stock. Add your Supabase keys to config.js to go live.</div>`);
+}
+window.addEventListener("hashchange", () => render());
+
+(async function init() {
+  // 1) Show cached stock instantly on repeat visits (fast on mobile data)
+  const cached = hasBackend() ? store.get("rk_cache", null) : null;
+  if (cached && Array.isArray(cached.p)) {
+    PRODUCTS = cached.p.map(fromRow);
+    if (cached.s) CONFIG = { ...CONFIG, ...cleanSettings(cached.s) };
+    applyConfig(); saveCart(); render();
+  } else {
+    app.innerHTML = `<div class="loading"><div class="spinner"></div><p style="margin-top:12px">Opening the Kloset…</p></div>`;
+  }
+  // 2) Load fresh stock + settings, then re-render
+  await Promise.all([loadData(), initAuth()]);
+  applyConfig(); saveCart(); updateAccountIcon();
+  render(!!cached);
+})();
+</script>
+</body>
+</html>
