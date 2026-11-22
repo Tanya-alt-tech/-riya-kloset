@@ -1144,7 +1144,7 @@ function viewCart() {
     </div></div>`;
 
   const c = state.checkout, d = deliveryOpt(), sub = subtotal(), total = sub + d.fee;
-  if (c.delivery === "nation" && c.pay === "cash") c.pay = "momo";   // no cash on delivery for bus courier
+  if (c.delivery !== "pickup" && c.pay === "cash") c.pay = "momo";   // deliveries are paid BEFORE dispatch (no cash on delivery)
 
   const items = lines.map((i, idx) => `
     <div class="citem">
@@ -1164,15 +1164,16 @@ function viewCart() {
     <label class="opt ${c.delivery === o.id ? "on" : ""}"><input type="radio" name="del" value="${o.id}" ${c.delivery === o.id ? "checked" : ""}>
       <div><b>${o.label}</b><small>${o.note}</small></div><span class="fee">${o.fee ? cedi(o.fee) : "Free"}</span></label>`).join("");
 
-  const cashOpt = c.delivery === "nation" ? "" : `
+  // Cash only for in-store pickup. Deliveries must be paid before they're sent out.
+  const cashOpt = c.delivery !== "pickup" ? "" : `
     <label class="opt ${c.pay === "cash" ? "on" : ""}"><input type="radio" name="pay" value="cash" ${c.pay === "cash" ? "checked" : ""}>
-      <div><b>${c.delivery === "pickup" ? "Cash in store" : "Cash on delivery"}</b><small>${c.delivery === "pickup" ? "Pay when you collect" : "Pay the rider when it arrives"}</small></div></label>`;
+      <div><b>Cash in store</b><small>Pay when you collect</small></div></label>`;
 
   const momoNote = c.pay !== "momo" ? "" : `
     <div class="warranty" style="margin-top:12px">${ICON.shield}<div><b>How Mobile Money works</b>
       <p>Send your order first. Once we confirm your items are available, pay
       ${CONFIG.momoNumber ? `to <b>${CONFIG.momoNumber}</b>${CONFIG.momoName ? ` (${CONFIG.momoName})` : ""}` : "to the MoMo number we send you"}.
-      Please only pay after we confirm.</p></div></div>`;
+      ${c.delivery === "pickup" ? "Please only pay after we confirm." : "<b>Payment is required before delivery.</b> We send your order out as soon as it's received."}</p></div></div>`;
 
   return `
   <div class="wrap">
@@ -1254,7 +1255,7 @@ function buildOrderMessage(ref) {
     const detail = i.p.cat === "phones" ? `${i.p.storage}, ${i.p.colour}` : `Size ${i.size}`;
     return `${n + 1}. ${plain(i.p.name)} (${plain(detail)})${i.qty > 1 ? ` x${i.qty}` : ""} – ${cedi(i.p.price * i.qty)}`;
   });
-  const pay = c.pay === "momo" ? "Mobile Money (after confirmation)" : (c.delivery === "pickup" ? "Cash in store" : "Cash on delivery");
+  const pay = c.pay === "cash" ? "Cash in store" : (c.delivery === "pickup" ? "Mobile Money (after confirmation)" : "Mobile Money before delivery");
   return [
     `Hello Riy@ Kloset! 👋 I'd like to order:`, ``,
     ...lines, ``,
@@ -1551,7 +1552,7 @@ function viewAbout() {
       <div class="panel">
         <h2>Delivery</h2>
         <div class="dl">${CONFIG.delivery.map(d => `<div><div><b>${d.label}</b><small>${d.note}</small></div><span class="fee">${d.fee ? cedi(d.fee) : "Free"}</span></div>`).join("")}</div>
-        <p style="color:var(--muted);font-size:.85rem;margin-top:12px">Orders confirmed before 2pm go out the same day in Accra. Nationwide parcels are sent by bus courier and you collect at the station. We send your waybill number on WhatsApp.</p>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:12px"><b style="color:var(--ink)">Payment is made before delivery</b> by Mobile Money (MTN MoMo / Telecel Cash). No cash on delivery. Orders paid before 2pm go out the same day in Accra. Nationwide parcels are sent by bus courier and you collect at the station. We send your waybill number on WhatsApp.</p>
       </div>
       <div class="panel">
         <h2>Our promise</h2>
