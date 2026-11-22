@@ -1,6 +1,6 @@
 # Riy@ Kloset: online shop
 
-A fast, mobile-first shop for Riy@ Kloset (Accra): thrift clothing, bags, shoes and phones.
+A fast, mobile-first shop for Riy@ Kloset (Accra), "where style meets affordability": new clothing, bags, shoes and phones.
 Static files hosted on GitHub/Cloudflare, with **Supabase** for the database, photo storage and logins.
 
 | File | What it is |
@@ -65,7 +65,7 @@ Opening hours also control the pickup times customers can book.
 - Deleting an account erases the login and profile. Past orders stay for the shop's records with the name and phone removed.
 
 **Owner (admin.html)**
-- **Items**: add/edit/delete, up to 8 photos each (shrunk to WebP automatically, ~100–200 KB, good for mobile data), ◀ ▶ to reorder (first = cover), one-tap **Mark sold**.
+- **Items**: add/edit/delete, up to 8 photos each (shrunk to WebP automatically, ~100–200 KB, good for mobile data), ◀ ▶ to reorder (first = cover), one-tap **Mark sold** (sold out).
 - **Orders**: *Today's pickups* (sorted by time), *Upcoming pickups*, *Deliveries*, *All*. Set status Confirmed → Ready → Collected, and a **WhatsApp customer** button sends "your order is ready".
 - **Settings**: everything shown on the site (contact, MoMo, address, hours, delivery fees).
 
@@ -80,7 +80,7 @@ Opening hours also control the pickup times customers can book.
 
 ## Next steps (not built yet)
 - **Online payments**: Paystack or Hubtel for MoMo/Telecel Cash/cards with automatic confirmation. Today she confirms on WhatsApp, then the customer pays manually.
-- **Stock reservation**: hold one-of-a-kind items for ~15 min during checkout. Today she confirms availability on WhatsApp.
+- **Stock reservation**: hold low-stock items for ~15 min during checkout. Today she confirms availability on WhatsApp.
 - **Sign in with Google / phone OTP**: faster sign-up. Phone OTP needs an SMS provider (cost per SMS).
 - **Pickup slot limits**: cap how many pickups per time slot if it gets busy.
 - **Order spam protection**: if fake orders appear, turn on email confirmation and/or Supabase CAPTCHA (Authentication → Attack Protection).

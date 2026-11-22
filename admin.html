@@ -203,7 +203,7 @@ const CONFIGURED = !!(C.supabaseUrl && C.supabaseAnonKey && !/YOUR/.test(C.supab
 const BUCKET = "product-images";
 const MAX_PHOTOS = 8;
 const CATS = { men: "Men", women: "Women", bags: "Bags", shoes: "Shoes", phones: "Phones" };
-const CONDS = { fashion: ["New", "Like New", "Very Good", "Good"], phones: ["New", "UK Used", "Refurbished"] };
+// Everything sold is brand new, so there is no condition picker.
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const DEFAULT_SETTINGS = {
   city: "Accra", whatsapp: "233207411266", phone: "+233 20 741 1266", instagram: "", tiktok: "",
@@ -377,8 +377,8 @@ function renderList() {
     (!q || `${p.name} ${p.brand || ""} ${p.category}`.toLowerCase().includes(q)));
   $("#list").innerHTML = rows.length ? rows.map(p => {
     const detail = isPhoneCat(p.category)
-      ? [p.storage, p.colour, p.condition].filter(Boolean).join(" · ")
-      : [CATS[p.category], (p.sizes || []).join(", "), p.condition].filter(Boolean).join(" · ");
+      ? [p.storage, p.colour].filter(Boolean).join(" · ")
+      : [CATS[p.category], (p.sizes || []).join(", ")].filter(Boolean).join(" · ");
     const quick = p.status === "active"
       ? `<button class="quick" data-setstatus="sold" data-id="${p.id}">Mark sold</button>`
       : `<button class="quick" data-setstatus="active" data-id="${p.id}">Put back on sale</button>`;
@@ -544,7 +544,7 @@ async function saveSettings(e) {
    EDITOR: add / edit an item
    ===================================================================== */
 function blankItem() {
-  return { id: null, category: "women", name: "", price: "", old_price: "", condition: "Very Good", sizes: "", stock: 1,
+  return { id: null, category: "women", name: "", price: "", old_price: "", condition: "New", sizes: "", stock: 1,
     fresh: true, status: "active", description: "", measurements: "",
     brand: "", storage: "", ram: "", colour: "", battery: "", in_box: "",
     images: [], newUploads: [], removed: [], uploading: 0 };
@@ -569,8 +569,7 @@ function closeEditor() {
 
 function renderEditor() {
   const phone = isPhoneCat(ed.category);
-  const conds = phone ? CONDS.phones : CONDS.fashion;
-  if (!conds.includes(ed.condition)) ed.condition = conds[0];
+  ed.condition = "New";   // everything sold is brand new
   const seg = (name, opts, val) => `<div class="seg">${opts.map(([v, l]) =>
     `<label><input type="radio" name="${name}" value="${v}" ${String(val) === v ? "checked" : ""}><span>${l}</span></label>`).join("")}</div>`;
 
@@ -586,34 +585,32 @@ function renderEditor() {
     </div>
 
     <div class="sec"><h3>Details</h3>
-      <label class="field"><span>Item name *</span><input type="text" name="name" maxlength="120" value="${esc(ed.name)}" placeholder="${phone ? "e.g. iPhone 13" : "e.g. Vintage Levi's 501 Jeans"}" required></label>
+      <label class="field"><span>Item name *</span><input type="text" name="name" maxlength="120" value="${esc(ed.name)}" placeholder="${phone ? "e.g. Samsung Galaxy A15" : "e.g. Straight-Leg Denim Jeans"}" required></label>
       <div class="row2">
         <label class="field"><span>Price (GH₵) *</span><input type="number" name="price" min="0" inputmode="numeric" value="${esc(ed.price)}" required></label>
         <label class="field"><span>Old price (optional)</span><input type="number" name="old_price" min="0" inputmode="numeric" value="${esc(ed.old_price)}"><small>Shows as a deal</small></label>
       </div>
-      <div class="field"><span>Condition *</span>${seg("condition", conds.map(c => [c, c]), ed.condition)}</div>
       ${phone ? `
         <div class="row2">
           <label class="field"><span>Brand</span><input type="text" name="brand" value="${esc(ed.brand)}" placeholder="Apple, Samsung…"></label>
           <label class="field"><span>Colour</span><input type="text" name="colour" value="${esc(ed.colour)}"></label>
         </div>
-        <div class="row3">
+        <div class="row2">
           <label class="field"><span>Storage</span><input type="text" name="storage" value="${esc(ed.storage)}" placeholder="128GB"></label>
-          <label class="field"><span>RAM</span><input type="text" name="ram" value="${esc(ed.ram)}" placeholder="4GB"></label>
-          <label class="field"><span>Battery %</span><input type="number" name="battery" min="0" max="100" inputmode="numeric" value="${esc(ed.battery)}" placeholder="88"></label>
+          <label class="field"><span>RAM</span><input type="text" name="ram" value="${esc(ed.ram)}" placeholder="6GB"></label>
         </div>
-        <label class="field"><span>In the box</span><input type="text" name="in_box" value="${esc(ed.in_box)}" placeholder="Phone + cable"></label>`
+        <label class="field"><span>In the box</span><input type="text" name="in_box" value="${esc(ed.in_box)}" placeholder="Sealed box: phone, charger, case"></label>`
       : `
-        <label class="field"><span>Size(s)</span><input type="text" name="sizes" value="${esc(ed.sizes)}" placeholder="e.g. 32   or   UK 10   or   M, L, XL">
-          <small>One size for thrift pieces. Separate with commas for new stock in several sizes.</small></label>
+        <label class="field"><span>Size(s)</span><input type="text" name="sizes" value="${esc(ed.sizes)}" placeholder="e.g. S, M, L, XL   or   30, 32, 34">
+          <small>Separate sizes with commas. Bags: "One size".</small></label>
         <label class="field"><span>Measurements (optional)</span><input type="text" name="measurements" value="${esc(ed.measurements)}" placeholder="Waist 32in · Length 41in"></label>`}
-      <label class="field"><span>Description</span><textarea name="description" maxlength="1000" placeholder="Fabric, fit, any flaws (be honest, it builds trust)…">${esc(ed.description)}</textarea></label>
+      <label class="field"><span>Description</span><textarea name="description" maxlength="1000" placeholder="Fabric, fit, colours available…">${esc(ed.description)}</textarea></label>
     </div>
 
     <div class="sec"><h3>Stock & visibility</h3>
       <label class="field"><span>How many do you have?</span><input type="number" name="stock" min="0" inputmode="numeric" value="${esc(ed.stock)}">
-        <small>1 = one-of-a-kind (shows "Only 1 left")</small></label>
-      <label class="toggle"><div>Fresh bale<small>Show in "Fresh Bales" on the home page</small></div><input type="checkbox" name="fresh" ${ed.fresh ? "checked" : ""}></label>
+        <small>The shop shows "Only X left" when it's 3 or fewer</small></label>
+      <label class="toggle"><div>New arrival<small>Show in "New Arrivals" on the home page</small></div><input type="checkbox" name="fresh" ${ed.fresh ? "checked" : ""}></label>
       <div class="field"><span>Status</span>${seg("status", [["active", "On sale"], ["sold", "Sold"], ["hidden", "Hidden"]], ed.status)}</div>
     </div>
   </form>`;
@@ -708,7 +705,7 @@ async function saveItem() {
     description: ed.description.trim(), measurements: phone ? "" : ed.measurements.trim(),
     brand: phone ? ed.brand.trim() || null : null, storage: phone ? ed.storage.trim() || null : null,
     ram: phone ? ed.ram.trim() || null : null, colour: phone ? ed.colour.trim() || null : null,
-    battery: phone ? battery : null, in_box: phone ? ed.in_box.trim() || null : null,
+    battery: null, in_box: phone ? ed.in_box.trim() || null : null,
     images: ed.images
   };
   if (row.stock === 0 && row.status === "active") row.status = "sold";

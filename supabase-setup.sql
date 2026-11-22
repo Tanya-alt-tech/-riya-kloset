@@ -5,7 +5,7 @@
 --
 --  Creates:
 --    admins     who can manage the shop
---    products   the stock (clothes, bags, shoes, phones)
+--    products   the stock (new clothes, bags, shoes, phones)
 --    settings   shop details (WhatsApp, MoMo, hours, delivery fees)
 --    profiles   customer accounts (name, phone, area)
 --    orders     orders + pickup bookings
@@ -46,7 +46,7 @@ create table if not exists public.products (
   name         text not null check (char_length(name) between 2 and 120),
   price        numeric(10,2) not null check (price >= 0),
   old_price    numeric(10,2) check (old_price is null or old_price >= 0),
-  condition    text not null check (condition in ('New','Like New','Very Good','Good','UK Used','Refurbished')),
+  condition    text not null default 'New' check (condition in ('New','Like New','Very Good','Good','UK Used','Refurbished')),
   sizes        text[] not null default '{}',
   stock        int not null default 1 check (stock >= 0),
   fresh        boolean not null default false,
