@@ -43,7 +43,7 @@ Static files hosted on GitHub/Cloudflare, with **Supabase** for the database, ph
 - **Confirm email**: ON is safer (stops fake accounts), but Supabase's built-in email only sends a few emails per hour.
   For launch, either connect a free SMTP sender (**Authentication → Emails → SMTP Settings**, e.g. Resend or Brevo)
   or turn confirmation OFF until you do. The site handles both.
-- **Authentication → URL Configuration**: set **Site URL** to the live address (e.g. `https://riyakloset.com`)
+- **Authentication → URL Configuration**: set **Site URL** to `https://riyakloset.com`
   and add it under **Redirect URLs**, so password-reset and confirmation links come back to the shop.
 
 ### 6. Publish
