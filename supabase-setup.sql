@@ -204,6 +204,20 @@ create policy "product-images: admin update" on storage.objects for update to au
 create policy "product-images: admin delete" on storage.objects for delete to authenticated
   using (bucket_id = 'product-images' and public.is_admin());
 
+-- ---------------------------------------------------------------------
+-- TABLE ACCESS for the website (newer Supabase projects don't grant this
+-- automatically). Row Level Security above still decides what each
+-- person can actually see or change.
+-- ---------------------------------------------------------------------
+grant usage on schema public to anon, authenticated;
+grant select on public.products, public.settings to anon, authenticated;
+grant insert, update, delete on public.products, public.settings to authenticated;
+grant select, insert, update on public.profiles to authenticated;
+grant select, insert, update, delete on public.orders to authenticated;
+grant select on public.admins to authenticated;
+grant execute on function public.is_admin() to anon, authenticated;
+grant execute on function public.delete_my_account() to authenticated;
+
 -- =====================================================================
 --  LAST STEP (after the owner has created her login, see README step 4):
 --
